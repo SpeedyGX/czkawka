@@ -454,6 +454,7 @@ mod tests {
             selected_row: false,
             val_str: ModelRc::new(VecModel::from(val_str.iter().map(|s| SharedString::from(*s)).collect::<Vec<_>>())),
             val_int: ModelRc::new(VecModel::from(val_int.to_vec())),
+            is_source: false,
         }
     }
 
@@ -484,6 +485,7 @@ mod tests {
             selected_row: false,
             val_str: ModelRc::new(VecModel::from(val_str.to_vec())),
             val_int: ModelRc::new(VecModel::from(val_int.to_vec())),
+            is_source: false,
         }
     }
 
