@@ -172,6 +172,15 @@ export component SelectableTableView inherits Rectangle {
                         }
                     }
 
+                    Text {
+                        text: r.is_source ? "★ SOURCE" : "";
+                        color: ColorPalette.compare_left_value_color;
+                        font-weight: FontSizes.bold_weight;
+                        font-size: FontSizes.small;
+                        vertical-alignment: center;
+                        visible: r.is_source && !r.header_row;
+                    }
+
                     HorizontalLayout {
                         spacing: 5px;
                         for f[idx] in r.val_str: Text {

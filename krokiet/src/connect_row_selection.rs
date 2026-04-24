@@ -639,11 +639,10 @@ fn reverse_selection_of_item_with_id(selection: &mut SelectionData, model: &Mode
     model.set_row_data(id, model_data);
 
     if was_selected {
-        assert!(selection.number_of_selected_rows > 0);
         if !selection.exceeded_limit {
             selection.selected_rows.retain(|&x| x != id);
         }
-        selection.number_of_selected_rows -= 1;
+        selection.number_of_selected_rows = selection.number_of_selected_rows.saturating_sub(1);
     } else {
         if !selection.exceeded_limit {
             selection.selected_rows.push(id);
@@ -1174,6 +1173,21 @@ mod context_menu {
                 None => return,
             };
             if row.header_row {
+                return;
+            }
+
+            // If this item is already source, deselect it instead
+            if row.is_source {
+                let mut new_items: Vec<SingleMainListModel> = Vec::new();
+                for i in 0..model.row_count() {
+                    let mut item = model.row_data(i).expect("Row data out of bounds");
+                    if i == idx {
+                        item.is_source = false;
+                    }
+                    new_items.push(item);
+                }
+                active_tab.set_tool_model(&app, ModelRc::new(VecModel::from(new_items)));
+                reset_selection(&app, active_tab, true);
                 return;
             }
 
