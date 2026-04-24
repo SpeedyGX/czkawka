@@ -15,6 +15,7 @@ export component PopupContextMenu inherits Rectangle {
     callback copy_file_name();
     callback copy_parent_folder_path();
     callback copy_full_path();
+    callback set_as_source();
 
     out property <length> popup_menu_width: 230px;
     private property <length> menu_item_height: 28px;
@@ -24,7 +25,7 @@ export component PopupContextMenu inherits Rectangle {
 
     popup_window := PopupWindow {
         width: popup_menu_width;
-        height: menu_item_height * 12 + divider_height * 4;
+        height: menu_item_height * 13 + divider_height * 5;
         close-policy: PopupClosePolicy.close-on-click-outside;
 
         Rectangle {
@@ -96,6 +97,7 @@ export component PopupContextMenu inherits Rectangle {
 
                 Rectangle { height: divider_height; background: ColorPalette.popup_border_color.with_alpha(0.25); }
 
+                // Copy
                 Button {
                     text: Translations.context_menu_copy_file_name_text;
                     height: menu_item_height;
@@ -110,6 +112,15 @@ export component PopupContextMenu inherits Rectangle {
                     text: Translations.context_menu_copy_full_path_text;
                     height: menu_item_height;
                     clicked => { popup_window.close(); root.copy_full_path(); }
+                }
+
+                Rectangle { height: divider_height; background: ColorPalette.popup_border_color.with_alpha(0.25); }
+
+                // Source
+                Button {
+                    text: Translations.context_menu_set_as_source_text;
+                    height: menu_item_height;
+                    clicked => { popup_window.close(); root.set_as_source(); }
                 }
             }
         }

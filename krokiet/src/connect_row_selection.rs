@@ -790,6 +790,7 @@ mod context_menu {
         connect_copy_file_name(app);
         connect_copy_parent_folder_path(app);
         connect_copy_full_path(app);
+        connect_set_as_source(app);
     }
 
     fn connect_remove_from_results(app: &MainWindow) {
@@ -1134,8 +1135,8 @@ mod context_menu {
             let app = a.upgrade().expect("Failed to upgrade app");
             let active_tab = app.global::<GuiState>().get_active_tab();
             let model = active_tab.get_tool_model(&app);
-            let name_idx = active_tab.get_str_name_idx();
             let path_idx = active_tab.get_str_path_idx();
+            let name_idx = active_tab.get_str_name_idx();
 
             let row = model
                 .row_data(idx as usize)
@@ -1143,20 +1144,78 @@ mod context_menu {
             if row.header_row {
                 return;
             }
-            let name = row
-                .val_str
-                .iter()
-                .nth(name_idx)
-                .unwrap_or_else(|| panic!("name_idx={name_idx} out of bounds, full val_str={:?}", row.val_str.iter().collect::<Vec<_>>()))
-                .to_string();
             let path = row
                 .val_str
                 .iter()
                 .nth(path_idx)
                 .unwrap_or_else(|| panic!("path_idx={path_idx} out of bounds, full val_str={:?}", row.val_str.iter().collect::<Vec<_>>()))
                 .to_string();
-            let full_path = if path.is_empty() { name } else { format!("{path}/{name}") };
+            let name = row
+                .val_str
+                .iter()
+                .nth(name_idx)
+                .unwrap_or_else(|| panic!("name_idx={name_idx} out of bounds, full val_str={:?}", row.val_str.iter().collect::<Vec<_>>()))
+                .to_string();
+            let full_path = format!("{}/{}", path, name);
             set_clipboard(full_path);
+        });
+    }
+
+    fn connect_set_as_source(app: &MainWindow) {
+        let a = app.as_weak();
+        app.global::<Callabler>().on_row_set_as_source(move |idx| {
+            let app = a.upgrade().expect("Failed to upgrade app");
+            let active_tab = app.global::<GuiState>().get_active_tab();
+            let model = active_tab.get_tool_model(&app);
+            let idx = idx as usize;
+
+            let row = match model.row_data(idx) {
+                Some(r) => r,
+                None => return,
+            };
+            if row.header_row {
+                return;
+            }
+
+            // Find start of group (preceding header row)
+            let mut start = idx;
+            while start > 0 {
+                if let Some(prev) = model.row_data(start - 1) {
+                    if prev.header_row {
+                        break;
+                    }
+                }
+                start -= 1;
+            }
+
+            // Build new items with updated is_source flags
+            let mut new_items: Vec<SingleMainListModel> = Vec::new();
+            let mut in_current_group = false;
+            for i in 0..model.row_count() {
+                let mut item = model.row_data(i).expect("Row data out of bounds");
+                if i == start {
+                    in_current_group = true;
+                }
+                if in_current_group {
+                    if i == idx {
+                        item.is_source = true;
+                    } else {
+                        item.is_source = false;
+                    }
+                    // Check if we've left the group
+                    if i < model.row_count() - 1 {
+                        if let Some(next) = model.row_data(i + 1) {
+                            if next.header_row {
+                                in_current_group = false;
+                            }
+                        }
+                    }
+                }
+                new_items.push(item);
+            }
+
+            active_tab.set_tool_model(&app, ModelRc::new(VecModel::from(new_items)));
+            reset_selection(&app, active_tab, true);
         });
     }
 }

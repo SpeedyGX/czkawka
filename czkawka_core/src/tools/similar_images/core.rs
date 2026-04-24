@@ -526,14 +526,14 @@ impl SimilarImages {
             self.similar_referenced_vectors = mem::take(&mut self.similar_vectors)
                 .into_iter()
                 .filter_map(|vec_file_entry| {
-                    let (mut files_from_referenced_folders, normal_files): (Vec<_>, Vec<_>) = vec_file_entry
+                    let (files_from_referenced_folders, normal_files): (Vec<_>, Vec<_>) = vec_file_entry
                         .into_iter()
                         .partition(|e| self.common_data.directories.is_in_referenced_directory(e.get_path()));
 
                     if normal_files.is_empty() {
                         None
                     } else {
-                        files_from_referenced_folders.pop().map(|file| (file, normal_files))
+                        select_best_quality_image(files_from_referenced_folders).map(|file| (file, normal_files))
                     }
                 })
                 .collect::<Vec<(ImagesEntry, Vec<ImagesEntry>)>>();
@@ -572,6 +572,26 @@ impl SimilarImages {
         }
         assert!(!found, "Found Invalid entries, verify errors before");
     }
+}
+
+// Helper function to calculate image quality score based on resolution and file size
+fn calculate_image_quality_score(entry: &ImagesEntry) -> u64 {
+    // Score based on resolution (area) and file size
+    // Prefer larger resolution and larger file size
+    let resolution_area = (entry.width as u64).saturating_mul(entry.height as u64);
+    // Weight: 70% resolution, 30% file size
+    // Normalize file size to be comparable with resolution (assuming typical images are 1-10MB)
+    let normalized_size = entry.size / 1000; // Convert to KB for better scaling
+    resolution_area.saturating_mul(70).saturating_add(normalized_size.saturating_mul(30))
+}
+
+// Helper function to select best quality image from a list
+fn select_best_quality_image(mut files: Vec<ImagesEntry>) -> Option<ImagesEntry> {
+    if files.is_empty() {
+        return None;
+    }
+    files.sort_by_key(|entry| std::cmp::Reverse(calculate_image_quality_score(entry)));
+    files.into_iter().next()
 }
 
 fn is_in_reference_folder(reference_directories: &[PathBuf], path: &Path) -> bool {

@@ -476,6 +476,7 @@ fn translate_items(app: &MainWindow) {
     translation.set_context_menu_copy_file_name_text(flk!("context_menu_copy_file_name_text").into());
     translation.set_context_menu_copy_parent_folder_path_text(flk!("context_menu_copy_parent_folder_path_text").into());
     translation.set_context_menu_copy_full_path_text(flk!("context_menu_copy_full_path_text").into());
+    translation.set_context_menu_set_as_source_text(flk!("context_menu_set_as_source_text").into());
 
     let tools_model: [(SharedString, ActiveTab); TOOLS_NUMBER] = [
         (flk!("tool_duplicate_files").into(), ActiveTab::DuplicateFiles),

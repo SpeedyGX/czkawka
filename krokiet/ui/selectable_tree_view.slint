@@ -393,6 +393,11 @@ export component SelectableTableView inherits Rectangle {
                 Callabler.row_copy_full_path(context_menu_row_idx);
             }
         }
+        set_as_source() => {
+            if (context_menu_row_idx != -1) {
+                Callabler.row_set_as_source(context_menu_row_idx);
+            }
+        }
     }
 
     focus_item := FocusScope {

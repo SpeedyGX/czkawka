@@ -495,4 +495,5 @@ context_menu_exclude_item_text = Exclude Item
 context_menu_copy_file_name_text = Copy File Name
 context_menu_copy_parent_folder_path_text = Copy Parent Folder
 context_menu_copy_full_path_text = Copy Full Path
+context_menu_set_as_source_text = Set as Source File
 

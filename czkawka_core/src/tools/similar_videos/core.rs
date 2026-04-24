@@ -342,20 +342,59 @@ impl SimilarVideos {
             self.similar_referenced_vectors = mem::take(&mut self.similar_vectors)
                 .into_iter()
                 .filter_map(|vec_file_entry| {
-                    let (mut files_from_referenced_folders, normal_files): (Vec<_>, Vec<_>) = vec_file_entry
+                    let (files_from_referenced_folders, normal_files): (Vec<_>, Vec<_>) = vec_file_entry
                         .into_iter()
                         .partition(|e| self.common_data.directories.is_in_referenced_directory(e.get_path()));
 
                     if normal_files.is_empty() {
                         None
                     } else {
-                        files_from_referenced_folders.pop().map(|file| (file, normal_files))
+                        select_best_quality_video(files_from_referenced_folders).map(|file| (file, normal_files))
                     }
                 })
                 .collect::<Vec<(VideosEntry, Vec<VideosEntry>)>>();
         }
     }
 }
+
+// Helper function to calculate video quality score based on bitrate, resolution, fps, and file size
+fn calculate_video_quality_score(entry: &VideosEntry) -> u64 {
+    // Score based on bitrate, resolution (area), fps, and file size
+    // Prefer higher bitrate, higher resolution, higher fps, and larger file size
+    let mut score: u64 = 0;
+
+    // Bitrate weight: 40% (higher bitrate means better quality)
+    if let Some(bitrate) = entry.bitrate {
+        score = score.saturating_add((bitrate / 1000).saturating_mul(40)); // Convert to kbps
+    }
+
+    // Resolution weight: 40% (larger area means better quality)
+    if let (Some(width), Some(height)) = (entry.width, entry.height) {
+        let resolution_area = (width as u64).saturating_mul(height as u64);
+        score = score.saturating_add(resolution_area.saturating_mul(40) / 1_000_000); // Normalize to avoid overflow
+    }
+
+    // FPS weight: 10% (higher fps might indicate better quality)
+    if let Some(fps) = entry.fps {
+        score = score.saturating_add((fps as u64).saturating_mul(10));
+    }
+
+    // File size weight: 10% (larger file size might indicate better quality)
+    let normalized_size = entry.size / 1_000_000; // Convert to MB
+    score = score.saturating_add(normalized_size.saturating_mul(10));
+
+    score
+}
+
+// Helper function to select best quality video from a list
+fn select_best_quality_video(mut files: Vec<VideosEntry>) -> Option<VideosEntry> {
+    if files.is_empty() {
+        return None;
+    }
+    files.sort_by_key(|entry| std::cmp::Reverse(calculate_video_quality_score(entry)));
+    files.into_iter().next()
+}
+
 pub fn get_similar_videos_cache_file(skip_forward_amount: u32, duration: u32, crop_detect: Cropdetect) -> String {
     let crop_detect_str = match crop_detect {
         Cropdetect::None => "none",

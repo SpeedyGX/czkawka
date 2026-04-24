@@ -9,6 +9,7 @@ pub struct SimplerSingleMainListModel {
     pub filled_header_row: bool,
     pub header_row: bool,
     pub selected_row: bool,
+    pub is_source: bool,
     pub val_int: Vec<i32>,
     pub val_str: Vec<String>,
 }
@@ -22,8 +23,8 @@ impl SimplerSingleMainListModel {
     #[allow(dead_code)] // rust with some version shows this
     pub(crate) fn debug_print(&self) {
         println!(
-            "SimplerSingleMainListModel: checked: {}, filled_header_row: {}, header_row: {}, selected_row: {}, val_int: {:?}, val_str: {:?}",
-            self.checked, self.filled_header_row, self.header_row, self.selected_row, self.val_int, self.val_str
+            "SimplerSingleMainListModel: checked: {}, filled_header_row: {}, header_row: {}, selected_row: {}, is_source: {}, val_int: {:?}, val_str: {:?}",
+            self.checked, self.filled_header_row, self.header_row, self.selected_row, self.is_source, self.val_int, self.val_str
         );
     }
 }
@@ -35,6 +36,7 @@ impl From<&SingleMainListModel> for SimplerSingleMainListModel {
             filled_header_row: model.filled_header_row,
             header_row: model.header_row,
             selected_row: model.selected_row,
+            is_source: model.is_source,
             val_int: model.val_int.iter().collect(),
             val_str: model.val_str.iter().map(|e| e.to_string()).collect(),
         }
@@ -47,6 +49,7 @@ impl From<SimplerSingleMainListModel> for SingleMainListModel {
             filled_header_row: val.filled_header_row,
             header_row: val.header_row,
             selected_row: val.selected_row,
+            is_source: val.is_source,
             val_int: ModelRc::new(VecModel::from(val.val_int)),
             val_str: ModelRc::new(VecModel::from(val.val_str.into_iter().map(|s| s.into()).collect::<Vec<SharedString>>())),
         }
