@@ -139,6 +139,7 @@ rust_hardlink_failed = Failed to hardlink { $name } to { $target }, reason { $re
 # Slint translations, but in arrays
 
 column_selection = Selection
+column_source = Source
 column_size = Size
 column_file_name = File Name
 column_path = Path

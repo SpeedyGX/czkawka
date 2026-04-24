@@ -120,6 +120,7 @@ rust_hardlink_failed = Nepodařilo se vytvořit pevný odkaz { $name } na { $tar
 # Slint translations, but in arrays
 
 column_selection = Výběr
+column_source = Zdroj
 column_size = Velikost
 column_file_name = Název souboru
 column_path = Popis umístění
@@ -412,3 +413,4 @@ context_menu_exclude_parent_folder_text = Vyloučit nadřazenou složku
 context_menu_exclude_item_text = Vyloučit položku
 context_menu_copy_name_text = Zkopírovat jméno
 context_menu_copy_parent_folder_path_text = Zkopírovat cestu k nadřazené složce
+context_menu_set_as_source_text = Nastavit jako zdrojový soubor
