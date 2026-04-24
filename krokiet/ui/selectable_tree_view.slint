@@ -13,7 +13,7 @@ export component SelectableTableView inherits Rectangle {
         {checked: false, selected_row: false, header_row: false, filled_header_row: false, val_str: ["witasphere", "/Xd1/Imagerren2", "25.11.1991"], val_int: []} ,
         {checked: true, selected_row: false, header_row: false, filled_header_row: false, val_str: ["lokkaler", "/Xd1/Vide2", "01.23.1911"], val_int: []}
     ];
-    in-out property <[length]> column_sizes: [30px, 40px, 80px, 150px, 160px];
+    in-out property <[length]> column_sizes: [50px, 50px, 80px, 150px, 160px];
     private property <int> column_number: column_sizes.length + 1;
     // This idx, starts from zero, but since first is always a checkbox, and is not in model.val values, remove 1 from idx
     in-out property <int> parentPathIdx;

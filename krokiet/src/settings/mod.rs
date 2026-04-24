@@ -532,7 +532,8 @@ pub(crate) fn set_settings_to_gui(app: &MainWindow, custom_settings: &SettingsCu
     settings.set_popup_crop_video_reencode(custom_settings.popup_crop_video_reencode);
     settings.set_popup_crop_video_quality(custom_settings.popup_crop_video_quality as f32);
 
-    let sel_px = 35.0;
+    let sel_px = 20.0;
+    let source_px = 25.0;
     let path_px = 350.0;
     let name_px = 100.0;
     let mod_px = 125.0;
@@ -550,20 +551,20 @@ pub(crate) fn set_settings_to_gui(app: &MainWindow, custom_settings: &SettingsCu
     };
 
     if base_settings.settings_load_tabs_sizes_at_startup {
-        settings.set_duplicates_column_size(fnm(&[sel_px, size_px, name_px, path_px, mod_px], "duplicates"));
+        settings.set_duplicates_column_size(fnm(&[sel_px, source_px, size_px, name_px, path_px, mod_px], "duplicates"));
         settings.set_empty_folders_column_size(fnm(&[sel_px, name_px, path_px, mod_px], "empty_folders"));
         settings.set_empty_files_column_size(fnm(&[sel_px, name_px, path_px, mod_px], "empty_files"));
         settings.set_temporary_files_column_size(fnm(&[sel_px, name_px, path_px, mod_px], "temporary_files"));
         settings.set_big_files_column_size(fnm(&[sel_px, size_px, name_px, path_px, mod_px], "big_files"));
-        settings.set_similar_images_column_size(fnm(&[sel_px, 80.0, 80.0, 80.0, name_px, path_px, mod_px], "similar_images"));
-        settings.set_similar_videos_column_size(fnm(&[sel_px, size_px, name_px, path_px, 80.0, 80.0, 80.0, 80.0, 80.0, mod_px], "similar_videos"));
-        settings.set_similar_music_column_size(fnm(&[sel_px, size_px, name_px, 80.0, 80.0, 80.0, 80.0, 80.0, 80.0, path_px, mod_px], "similar_music"));
+        settings.set_similar_images_column_size(fnm(&[sel_px, source_px, 80.0, 80.0, 80.0, name_px, path_px, mod_px], "similar_images"));
+        settings.set_similar_videos_column_size(fnm(&[sel_px, source_px, size_px, name_px, path_px, 80.0, 30.0, 30.0, 80.0, 80.0, mod_px], "similar_videos"));
+        settings.set_similar_music_column_size(fnm(&[sel_px, source_px, size_px, name_px, 80.0, 80.0, 80.0, 80.0, 80.0, 80.0, path_px, mod_px], "similar_music"));
         settings.set_invalid_symlink_column_size(fnm(&[sel_px, name_px, path_px, path_px, mod_px], "invalid_symlink"));
         settings.set_broken_files_column_size(fnm(&[sel_px, name_px, path_px, 200.0, size_px, mod_px], "broken_files"));
         settings.set_bad_extensions_column_size(fnm(&[sel_px, name_px, path_px, 40.0, 200.0], "bad_extensions"));
         settings.set_exif_remover_column_size(fnm(&[sel_px, size_px, name_px, path_px, 300.0, mod_px], "exif_remover"));
         settings.set_video_optimizer_column_size(fnm(&[sel_px, size_px, name_px, path_px, 100.0, 120.0, 160.0, mod_px], "video_optimizer"));
-        settings.set_bad_names_column_size(fnm(&[sel_px, name_px, 250.0, path_px], "bad_names"));
+        settings.set_bad_names_column_size(fnm(&[sel_px, name_px, 300.0, path_px], "bad_names"));
     }
 
     // Clear text
