@@ -336,6 +336,8 @@ export component SelectableTableView inherits Rectangle {
                 );
             }
         }
+        // Load metadata from the model for this row
+        Callabler.load_metadata_for_row(idx);
     }
 
     function hidePreview() {

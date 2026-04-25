@@ -130,8 +130,6 @@ export component MainWindow inherits Window {
                             height: parent.height;
                             width: parent.width;
                             visible: GuiState.preview_visible && !tool_settings.visible;
-                            source: GuiState.preview_image;
-                            image-fit: ImageFit.contain;
                         }
 
                         tool_settings := ToolSettings {

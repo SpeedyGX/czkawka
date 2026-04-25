@@ -57,6 +57,7 @@ mod common;
 mod connect_clean_cache;
 mod connect_compare;
 mod connect_directories_changes;
+mod connect_metadata;
 mod connect_open;
 mod connect_progress_receiver;
 mod connect_rfd;

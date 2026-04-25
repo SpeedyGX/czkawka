@@ -1,4 +1,4 @@
-import { ActiveTab, BottomPanelVisibility, CacheCleaningProgress, CacheCleaningResult, CompareImageData, CustomSelectColumnModel, SelectMode, SelectModel, SortMode, SortModel } from "common.slint";
+import { ActiveTab, BottomPanelVisibility, CacheCleaningProgress, CacheCleaningResult, CompareImageData, CustomSelectColumnModel, PreviewMetadata, SelectMode, SelectModel, SortMode, SortModel } from "common.slint";
 import { Translations } from "translations.slint";
 
 // State Gui state that shows the current state of the GUI
@@ -11,6 +11,25 @@ export global GuiState {
     in-out property <bool> preview_visible;
     in-out property <image> preview_image;
     in-out property <string> preview_image_path;
+    in-out property <PreviewMetadata> preview_metadata: {
+        file_name: "",
+        file_path: "",
+        file_size: "",
+        file_modified: "",
+        image_dimensions: "",
+        image_format: "",
+        video_codec: "",
+        video_duration: "",
+        video_bitrate: "",
+        video_fps: "",
+        video_dimensions: "",
+        audio_title: "",
+        audio_artist: "",
+        audio_year: "",
+        audio_bitrate: "",
+        audio_length: "",
+        audio_genre: "",
+    };
 
     in-out property <bool> audio_feature_enabled: false;
     in-out property <bool> notifications_feature_enabled: false;

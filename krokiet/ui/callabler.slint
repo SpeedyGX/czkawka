@@ -49,6 +49,8 @@ export global Callabler {
     // Preview
     // Parameters: path, crop_left, crop_top, crop_right, crop_bottom, original_width, original_height
     callback load_image_preview(string, int, int, int, int, int, int);
+    // Load metadata for a specific row index from the active tab's model data
+    callback load_metadata_for_row(int);
 
     // Settings
     callback changed_settings_preset();

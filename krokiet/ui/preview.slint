@@ -1,3 +1,144 @@
-export component Preview inherits Image {
-    image-rendering: ImageRendering.smooth;
+import { ScrollView } from "std-widgets.slint";
+import { ColorPalette } from "color_palette.slint";
+import { FontSizes } from "fonts.slint";
+import { GuiState } from "gui_state.slint";
+import { PreviewMetadata } from "common.slint";
+import { Translations } from "translations.slint";
+
+component MetadataLabel {
+    in property <string> label_text;
+    in property <string> value_text;
+
+    HorizontalLayout {
+        spacing: 4px;
+        Text {
+            text: root.label_text;
+            color: ColorPalette.hint_color;
+            font-size: FontSizes.small;
+            font-weight: FontSizes.bold_weight;
+            vertical-alignment: center;
+            min-width: max(70px, self.preferred-width);
+        }
+        Text {
+            text: root.value_text;
+            color: ColorPalette.compare_left_value_color;
+            font-size: FontSizes.small;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+}
+
+component MetadataPanel inherits Rectangle {
+    background: ColorPalette.compare_info_background;
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: ColorPalette.compare_info_border;
+
+    ScrollView {
+        VerticalLayout {
+            padding: 6px;
+            spacing: 2px;
+
+            if GuiState.preview_metadata.file_name != "" : MetadataLabel {
+                label_text: Translations.metadata_file_name_text;
+                value_text: GuiState.preview_metadata.file_name;
+            }
+            if GuiState.preview_metadata.file_path != "" : MetadataLabel {
+                label_text: Translations.metadata_file_path_text;
+                value_text: GuiState.preview_metadata.file_path;
+            }
+            if GuiState.preview_metadata.file_size != "" : MetadataLabel {
+                label_text: Translations.metadata_file_size_text;
+                value_text: GuiState.preview_metadata.file_size;
+            }
+            if GuiState.preview_metadata.file_modified != "" : MetadataLabel {
+                label_text: Translations.metadata_modified_text;
+                value_text: GuiState.preview_metadata.file_modified;
+            }
+
+            // Image group
+            if GuiState.preview_metadata.image_dimensions != "" : MetadataLabel {
+                label_text: Translations.metadata_dimensions_text;
+                value_text: GuiState.preview_metadata.image_dimensions;
+            }
+            if GuiState.preview_metadata.image_format != "" : MetadataLabel {
+                label_text: Translations.metadata_format_text;
+                value_text: GuiState.preview_metadata.image_format;
+            }
+
+            // Video group
+            if GuiState.preview_metadata.video_dimensions != "" : MetadataLabel {
+                label_text: Translations.metadata_dimensions_text;
+                value_text: GuiState.preview_metadata.video_dimensions;
+            }
+            if GuiState.preview_metadata.video_codec != "" : MetadataLabel {
+                label_text: Translations.metadata_codec_text;
+                value_text: GuiState.preview_metadata.video_codec;
+            }
+            if GuiState.preview_metadata.video_duration != "" : MetadataLabel {
+                label_text: Translations.metadata_duration_text;
+                value_text: GuiState.preview_metadata.video_duration;
+            }
+            if GuiState.preview_metadata.video_bitrate != "" : MetadataLabel {
+                label_text: Translations.metadata_bitrate_text;
+                value_text: GuiState.preview_metadata.video_bitrate;
+            }
+            if GuiState.preview_metadata.video_fps != "" : MetadataLabel {
+                label_text: Translations.metadata_fps_text;
+                value_text: GuiState.preview_metadata.video_fps;
+            }
+
+            // Audio group
+            if GuiState.preview_metadata.audio_title != "" : MetadataLabel {
+                label_text: Translations.metadata_title_text;
+                value_text: GuiState.preview_metadata.audio_title;
+            }
+            if GuiState.preview_metadata.audio_artist != "" : MetadataLabel {
+                label_text: Translations.metadata_artist_text;
+                value_text: GuiState.preview_metadata.audio_artist;
+            }
+            if GuiState.preview_metadata.audio_year != "" : MetadataLabel {
+                label_text: Translations.metadata_year_text;
+                value_text: GuiState.preview_metadata.audio_year;
+            }
+            if GuiState.preview_metadata.audio_genre != "" : MetadataLabel {
+                label_text: Translations.metadata_genre_text;
+                value_text: GuiState.preview_metadata.audio_genre;
+            }
+            if GuiState.preview_metadata.audio_bitrate != "" : MetadataLabel {
+                label_text: Translations.metadata_bitrate_text;
+                value_text: GuiState.preview_metadata.audio_bitrate;
+            }
+            if GuiState.preview_metadata.audio_length != "" : MetadataLabel {
+                label_text: Translations.metadata_length_text;
+                value_text: GuiState.preview_metadata.audio_length;
+            }
+        }
+    }
+}
+
+export component Preview inherits Rectangle {
+    VerticalLayout {
+        spacing: 0px;
+
+        // Image area - limited to at most 70% of the panel
+        Rectangle {
+            max-height: parent.height * 0.7;
+            vertical-stretch: 1.0;
+            clip: true;
+
+            Image {
+                width: parent.width;
+                height: parent.height;
+                source: GuiState.preview_image;
+                image-fit: ImageFit.contain;
+            }
+        }
+
+        // Metadata panel - takes remaining space
+        MetadataPanel {
+            vertical-stretch: 1.0;
+        }
+    }
 }

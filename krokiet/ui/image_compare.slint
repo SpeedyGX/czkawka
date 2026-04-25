@@ -395,7 +395,7 @@ export component ImageCompareOverlay inherits Rectangle {
                             width: parent.width; height: parent.height;
                             background: Settings.dark_theme ? #0e0e0e : #e0e0e0;
                             border-radius: 4px; clip: true;
-                            Preview {
+                            Image {
                                 width: parent.width; height: parent.height;
                                 source: GuiState.compare_left_image;
                                 image-fit: ImageFit.contain;
@@ -428,7 +428,7 @@ export component ImageCompareOverlay inherits Rectangle {
                             width: parent.width; height: parent.height;
                             background: Settings.dark_theme ? #0e0e0e : #e0e0e0;
                             border-radius: 4px; clip: true;
-                            Preview {
+                            Image {
                                 width: parent.width; height: parent.height;
                                 source: GuiState.compare_right_image;
                                 image-fit: ImageFit.contain;

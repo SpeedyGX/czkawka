@@ -9,12 +9,16 @@ use image::{DynamicImage, Rgba, RgbaImage};
 use log::{debug, error};
 use slint::ComponentHandle;
 
+use crate::connect_metadata::{connect_load_metadata_for_row, load_file_metadata};
 use crate::shared_models::SharedModels;
 use crate::{ActiveTab, Callabler, GuiState, MainWindow, Settings};
 
 pub type ImageBufferRgba = image::ImageBuffer<image::Rgba<u8>, Vec<u8>>;
 
 pub(crate) fn connect_show_preview(app: &MainWindow, shared_models: Arc<Mutex<SharedModels>>) {
+    // Register model metadata callback
+    connect_load_metadata_for_row(app, shared_models.clone());
+
     let a = app.as_weak();
     app.global::<Callabler>()
         .on_load_image_preview(move |image_path, crop_left, crop_top, crop_right, crop_bottom, orig_width, orig_height| {
@@ -87,8 +91,12 @@ pub(crate) fn connect_show_preview(app: &MainWindow, shared_models: Arc<Mutex<Sh
 
                 debug!("{}", timer.report("total", true));
                 set_preview_visible(&gui_state, Some(image_path.as_str()));
+                // Load basic file metadata (size, date) as fallback
+                load_file_metadata(&app, image_path.as_str());
             } else {
                 set_preview_visible(&gui_state, None);
+                // Still try to load basic metadata even if image preview failed
+                load_file_metadata(&app, image_path.as_str());
             }
         });
 }

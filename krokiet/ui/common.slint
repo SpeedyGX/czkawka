@@ -162,3 +162,25 @@ export struct CompareImageData {
     thumbnail: image,
     flat_idx: int,
 }
+
+export struct PreviewMetadata {
+    file_name: string,
+    file_path: string,
+    file_size: string,
+    file_modified: string,
+    image_dimensions: string,
+    image_format: string,
+    // Video metadata
+    video_codec: string,
+    video_duration: string,
+    video_bitrate: string,
+    video_fps: string,
+    video_dimensions: string,
+    // Audio metadata
+    audio_title: string,
+    audio_artist: string,
+    audio_year: string,
+    audio_bitrate: string,
+    audio_length: string,
+    audio_genre: string,
+}
