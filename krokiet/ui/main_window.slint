@@ -25,6 +25,7 @@ import { PopupCropVideo } from "popup_crop_video.slint";
 import { PopupReencodeVideo } from "popup_optimize.slint";
 import { PopupCleanExif } from "popup_clean_exif.slint";
 import { PopupCleanCache } from "popup_clean_cache.slint";
+import { ColorPalette } from "color_palette.slint";
 import { ToolSettings } from "tool_settings.slint";
 import { Translations } from "translations.slint";
 import { ImageCompareOverlay } from "image_compare.slint";
@@ -55,6 +56,10 @@ export component MainWindow inherits Window {
     min-height: 300px;
     preferred-height: 600px;
     in-out property <string> text_summary_text: "";
+    // Resizable preview split: position (in pixels) from the left edge of the results area
+    // Default is 50/50; minimum widths prevent collapsing either side
+    in-out property <length> preview_split: self.width / 2;
+    in-out property <length> min_list_width: 200px;
     in-out property <bool> stop_requested: false;
     in-out property <bool> scanning: false;
     in-out property <bool> processing: false;
@@ -95,9 +100,13 @@ export component MainWindow inherits Window {
                 min_width: 300px;
                 Rectangle {
                     vertical-stretch: 1.0;
+
+                    // Effective split point: when preview/tools hidden, list takes full width
+                    property <length> split_at: preview_or_tool_settings.visible ? root.preview_split : parent.width;
+
                     main_list := MainList {
                         x: 0;
-                        width: preview_or_tool_settings.visible ? parent.width / 2 : parent.width;
+                        width: split_at;
                         height: parent.height;
                         horizontal-stretch: 0.5;
                         working: root.scanning || root.processing;
@@ -121,11 +130,35 @@ export component MainWindow inherits Window {
                         }
                     }
 
+                    // Draggable resize handle — uses delta from press point to avoid feedback loop
+                    // when the handle itself moves during drag
+                    splitter_handle := Rectangle {
+                        x: split_at - 3px;
+                        width: 6px;
+                        height: parent.height;
+                        visible: preview_or_tool_settings.visible;
+                        background: touch_split.pressed ? ColorPalette.tab_selected_color : ColorPalette.line_item_color;
+                        touch_split := TouchArea {
+                            mouse-cursor: ew-resize;
+                            property <length> cached_split;
+                            pointer-event(event) => {
+                                if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
+                                    self.cached_split = root.preview_split;
+                                }
+                            }
+                            moved => {
+                                if (self.pressed) {
+                                    root.preview_split = max(root.min_list_width, min(self.cached_split + (self.mouse-x - self.pressed-x), root.width - 200px));
+                                }
+                            }
+                        }
+                    }
+
                     preview_or_tool_settings := Rectangle {
                         visible: (GuiState.preview_visible || tool_settings.visible) && GuiState.is_tool_tab_active;
                         height: parent.height;
-                        x: parent.width / 2;
-                        width: self.visible ? parent.width / 2 : 0;
+                        x: split_at;
+                        width: parent.width - split_at;
                         Preview {
                             height: parent.height;
                             width: parent.width;
