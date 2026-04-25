@@ -221,6 +221,28 @@ android_build_aab:
     cp "$ROOT/cedinia/android/app/build/outputs/bundle/release/app-release.aab" "$ROOT/cedinia.aab"
     echo "AAB built: $ROOT/cedinia.aab"
 
+##################### WEB #####################
+
+# Build czkawka_web binary with embedded static files.
+build-web:
+    cargo build --release --bin czkawka_web
+
+# Build and run czkawka_web in development mode.
+run-web:
+    cargo run --bin czkawka_web
+
+# Build and run czkawka_web with fast_release profile.
+runr-web:
+    cargo run --profile fast_release --bin czkawka_web
+
+# Build the Docker image for czkawka_web.
+docker-web:
+    docker build -t czkawka_web -f czkawka_web/Dockerfile .
+
+# Run the Docker image (maps port 8095).
+docker-run-web:
+    docker run -p 8095:8095 --rm czkawka_web
+
 ##################### BENCHMARKS #####################
 
 prepare_binaries:

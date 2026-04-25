@@ -329,6 +329,11 @@ impl SimilarVideos {
                 temp_vector.push(file_entry.clone());
             }
             if temp_vector.len() > 1 {
+                // Compute Hamming distance between the first entry and each subsequent entry
+                let first_hash = temp_vector[0].vhash.clone();
+                for entry in temp_vector.iter_mut().skip(1) {
+                    entry.difference = first_hash.hamming_distance(&entry.vhash);
+                }
                 collected_similar_videos.push(temp_vector);
             }
         }

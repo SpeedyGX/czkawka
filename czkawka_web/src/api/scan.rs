@@ -486,6 +486,10 @@ pub(crate) async fn scan_similar_images(
 
 fn serialize_similar_images_results(tool: &SimilarImages) -> serde_json::Value {
     let info = tool.get_information();
+    let hash_size = tool.get_params().hash_size;
+    let max_bits = u32::from(hash_size) * u32::from(hash_size);
+    let diff_to_pct = |diff: u32| (max_bits.saturating_sub(diff) * 100) / max_bits;
+
     let groups: Vec<serde_json::Value> = tool
         .get_similar_images()
         .iter()
@@ -499,12 +503,13 @@ fn serialize_similar_images_results(tool: &SimilarImages) -> serde_json::Value {
                         "width": entry.width,
                         "height": entry.height,
                         "difference": entry.difference,
+                        "similarity": diff_to_pct(entry.difference),
                         "inode": inode_of(&entry.path),
                     })
                 })
                 .collect();
             serde_json::json!({
-                "similarity": group.first().map_or(0, |e| e.difference),
+                "similarity": group.first().map_or(0, |e| diff_to_pct(e.difference)),
                 "files": files,
             })
         })
@@ -624,6 +629,9 @@ pub(crate) async fn scan_similar_videos(
 
 fn serialize_similar_videos_results(tool: &SimilarVideos) -> serde_json::Value {
     let info = tool.get_information();
+    let max_bits = 1000u32; // HASH_SIZE^3 = 10×10×10 = 1000
+    let diff_to_pct = |diff: u32| (max_bits.saturating_sub(diff) * 100) / max_bits;
+
     let groups: Vec<serde_json::Value> = tool
         .get_similar_videos()
         .iter()
@@ -641,11 +649,14 @@ fn serialize_similar_videos_results(tool: &SimilarVideos) -> serde_json::Value {
                         "height": entry.height,
                         "bitrate": entry.bitrate,
                         "thumbnail_path": entry.thumbnail_path.as_ref().map(|p| p.to_string_lossy().to_string()),
+                        "difference": entry.difference,
+                        "similarity": diff_to_pct(entry.difference),
                         "inode": inode_of(&entry.path),
                     })
                 })
                 .collect();
             serde_json::json!({
+                "similarity": group.first().map_or(0, |e| diff_to_pct(e.difference)),
                 "files": files,
             })
         })

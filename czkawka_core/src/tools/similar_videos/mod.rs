@@ -34,6 +34,7 @@ pub struct VideosEntry {
     pub size: u64,
     pub modified_date: u64,
     pub vhash: VideoHash,
+    pub difference: u32,
     pub error: String,
 
     // Properties extracted from video
@@ -68,6 +69,7 @@ impl FileEntry {
             modified_date: self.modified_date,
 
             vhash: Default::default(),
+            difference: 0,
             error: String::new(),
             fps: None,
             codec: None,

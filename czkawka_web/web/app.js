@@ -516,7 +516,7 @@ function renderResults() {
         if (tool === 'similar-images') {
             headerLabel = `Group ${gi + 1} – similarity ${similarity}% – ${files.length} files${linkedSuffix}`;
         } else if (tool === 'similar-videos') {
-            headerLabel = `Group ${gi + 1} – ${files.length} similar videos${linkedSuffix}`;
+            headerLabel = `Group ${gi + 1} – similarity ${similarity}% – ${files.length} similar videos${linkedSuffix}`;
         } else if (groupName) {
             headerLabel = `Group ${gi + 1} – "${escHtml(groupName)}" – ${files.length} files${linkedSuffix}`;
         } else {
@@ -524,7 +524,7 @@ function renderResults() {
         }
 
         // colspan = all data columns + checkbox + action column
-        const colspan = tool === 'similar-images' ? 7 : tool === 'similar-videos' ? 8 : 6;
+        const colspan = tool === 'similar-images' ? 7 : tool === 'similar-videos' ? 9 : 6;
         rows.push(`<tr class="group-header"><td colspan="${colspan}" style="font-weight:bold;font-size:13px;padding:8px 10px">${escHtml(headerLabel)}</td></tr>`);
 
         // File rows
@@ -550,12 +550,12 @@ function renderResults() {
             if (tool === 'similar-images') {
                 const width = file.width || 0;
                 const height = file.height || 0;
-                const diff = file.difference || 0;
+                const similarity = file.similarity ?? 0;
                 const resolution = width && height ? `${width}×${height}` : '—';
                 const thumbnailUrl = `/api/preview/image?path=${encodeURIComponent(path)}`;
 
                 extraCells = `
-                    <td style="white-space:nowrap">${diff}%</td>
+                    <td style="white-space:nowrap">${similarity}%</td>
                     <td style="white-space:nowrap">${resolution}</td>
                     <td style="text-align:right;white-space:nowrap">${formatSize(size)}</td>`;
                 const linkedTag = isLinked ? ' <span class="linked-badge">(Linked)</span>' : '';
@@ -574,8 +574,10 @@ function renderResults() {
                 const height = file.height || 0;
                 const resolution = width && height ? `${width}×${height}` : '—';
                 const thumbPath = file.thumbnail_path || '';
+                const similarity = file.similarity ?? 0;
 
                 extraCells = `
+                    <td style="white-space:nowrap">${similarity}%</td>
                     <td style="white-space:nowrap">${formatDuration(duration)}</td>
                     <td style="white-space:nowrap">${escHtml(codec)}</td>
                     <td style="white-space:nowrap">${fps}</td>
@@ -660,7 +662,7 @@ function buildResultsHeader(tool) {
     }
     if (tool === 'similar-videos') {
         return '<tr><th style="width:36px"><input type="checkbox" id="select-all"></th>' +
-            '<th>Path</th><th style="width:80px">Duration</th><th style="width:70px">Codec</th>' +
+            '<th>Path</th><th style="width:80px">Diff</th><th style="width:80px">Duration</th><th style="width:70px">Codec</th>' +
             '<th style="width:60px">FPS</th><th style="width:90px">Resolution</th><th style="width:80px">Size</th>' +
             '<th style="width:110px">Action</th></tr>';
     }

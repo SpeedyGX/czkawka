@@ -1,4 +1,5 @@
 mod api;
+mod embedded;
 mod scan_manager;
 mod ws;
 
@@ -9,7 +10,6 @@ use axum::routing::{get, post};
 use axum::Router;
 use czkawka_core::common::config_cache_path::set_config_cache_path;
 use tower_http::cors::CorsLayer;
-use tower_http::services::ServeDir;
 
 use crate::api::scan::AppState;
 use crate::scan_manager::ScanManager;
@@ -43,7 +43,7 @@ async fn main() {
         .route("/api/files/delete", post(api::actions::delete_files))
         .route("/api/files/hardlink", post(api::actions::hardlink_files))
         .layer(CorsLayer::permissive())
-        .fallback_service(ServeDir::new("czkawka_web/web"))
+        .fallback(get(embedded::serve_static))
         .with_state(state);
 
     let port = std::env::var("CZKAWKA_PORT").ok().and_then(|p| p.parse::<u16>().ok()).unwrap_or(8095);
