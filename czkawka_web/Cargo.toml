@@ -1,0 +1,23 @@
+[package]
+name = "czkawka_web"
+version = "11.0.1"
+edition = "2024"
+
+[[bin]]
+name = "czkawka_web"
+path = "src/main.rs"
+
+[dependencies]
+czkawka_core = { path = "../czkawka_core" }
+axum = { version = "0.8", features = ["macros", "ws"] }
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.6", features = ["cors", "fs"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+futures-util = "0.3"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+crossbeam-channel = "0.5"
+uuid = { version = "1", features = ["v4"] }
+image = "0.25"
+itertools = "0.14"

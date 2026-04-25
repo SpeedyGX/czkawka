@@ -3,6 +3,7 @@ members = [
     "czkawka_core",
     "czkawka_cli",
     "czkawka_gui",
+    "czkawka_web",
     "cedinia",
     "krokiet",
 ]

@@ -16,6 +16,10 @@ pub struct SimplerSingleMainListModel {
 
 impl SimplerSingleMainListModel {
     pub(crate) fn get_size(&self, size_idx: usize) -> u64 {
+        let len = self.val_int.len();
+        if size_idx + 1 >= len {
+            panic!("get_size: size_idx={size_idx} out of bounds for val_int (len={len})");
+        }
         connect_i32_into_u64(self.val_int[size_idx], self.val_int[size_idx + 1])
     }
     #[allow(clippy::allow_attributes)]
