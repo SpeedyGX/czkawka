@@ -15,8 +15,7 @@ main { display: flex; padding: 16px 24px; gap: 24px; max-width: 1400px; margin: 
 h2 { font-size: 16px; margin-bottom: 8px; margin-top: 16px; color: #a8b2d1; }
 h2:first-child { margin-top: 0; }
 
-#dirs { display: flex; gap: 12px; flex-wrap: wrap; }
-#dirs > div { flex: 1; min-width: 180px; }
+#dirs { display: flex; flex-direction: column; gap: 8px; }
 label { font-size: 13px; color: #8892b0; display: block; margin-bottom: 4px; }
 .dir-add { display: flex; gap: 4px; margin-top: 4px; }
 .dir-add input { flex: 1; background: #0f3460; border: 1px solid #1a3a6a; color: #eee; padding: 6px 8px; border-radius: 4px; font-size: 13px; }
@@ -69,11 +68,73 @@ label { font-size: 13px; color: #8892b0; display: block; margin-bottom: 4px; }
 tr.source-row { background: rgba(233, 69, 96, 0.12); }
 tr.source-row td { border-bottom-color: rgba(233, 69, 96, 0.3); }
 
-/* Already-hardlinked file tag */
-.linked-badge { color: #00c853; font-size: 12px; font-weight: 700; margin-left: 6px; }
+/* Already-hardlinked file tag — prevents the badge from being truncated */
+.linked-badge { color: #00c853; font-size: 12px; font-weight: 700; margin-left: 6px; flex-shrink: 0; }
+
+/* Flex container for path text + badge in non-thumbnail table rows */
+.path-with-badge { display: flex; align-items: center; overflow: hidden; white-space: nowrap; }
+
+/* Truncatable path text used inside .path-with-badge */
+.path-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Truncatable path text used inside .file-cell-with-preview (thumbnail rows) */
+.file-cell-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 tr.row-linked { opacity: 0.55; }
 tr.row-linked:hover { opacity: 0.75; }
 
 /* Hardlink action button in results toolbar */
 #hardlink-btn { background: #0f3460; }
 #hardlink-btn:hover { background: #1a4a7a; }
+
+/* Browse button */
+.browse-btn { background: #0f3460; color: #eee; border: 1px solid #1a3a6a; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap; }
+.browse-btn:hover { background: #1a4a7a; }
+
+/* Modal overlay */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+
+/* Folder browser modal */
+.folder-browser { background: #16213e; border: 1px solid #0f3460; border-radius: 8px; width: 560px; max-width: 90vw; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+
+/* Modal header */
+.folder-browser .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #0f3460; }
+.folder-browser .modal-title { font-size: 16px; font-weight: 600; color: #eee; }
+.folder-browser .modal-close { background: none; border: none; color: #8892b0; font-size: 18px; cursor: pointer; padding: 0 4px; line-height: 1; }
+.folder-browser .modal-close:hover { color: #e94560; }
+
+/* Modal body */
+.folder-browser .modal-body { padding: 12px 16px; flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 8px; }
+
+/* Current path row */
+.folder-browser .current-path-row { flex-shrink: 0; }
+.folder-browser .current-path { width: 100%; background: #0f3460; border: 1px solid #1a3a6a; color: #eee; padding: 8px 10px; border-radius: 4px; font-size: 13px; font-family: monospace; outline: none; }
+.folder-browser .current-path:focus { border-color: #e94560; }
+
+/* Entry list */
+.folder-browser .entry-list { flex: 1; overflow-y: auto; background: #0f3460; border: 1px solid #1a3a6a; border-radius: 4px; min-height: 200px; max-height: 40vh; }
+
+/* Entry list scrollbar */
+.folder-browser .entry-list::-webkit-scrollbar { width: 8px; }
+.folder-browser .entry-list::-webkit-scrollbar-track { background: #0f3460; border-radius: 4px; }
+.folder-browser .entry-list::-webkit-scrollbar-thumb { background: #1a3a6a; border-radius: 4px; }
+.folder-browser .entry-list::-webkit-scrollbar-thumb:hover { background: #2a4a7a; }
+
+/* Individual entry */
+.folder-browser .entry { display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: pointer; font-size: 13px; color: #ccc; border-bottom: 1px solid rgba(26,58,106,0.5); transition: background 0.1s; }
+.folder-browser .entry:last-child { border-bottom: none; }
+.folder-browser .entry:hover { background: #1a3a6a; color: #eee; }
+.folder-browser .entry.selected { background: #1a4a7a; color: #fff; }
+.folder-browser .entry.dir { font-weight: 600; color: #eee; }
+.folder-browser .entry.file { font-weight: 400; color: #8892b0; }
+.folder-browser .entry.file:hover { color: #ccc; }
+.folder-browser .entry .entry-icon { flex-shrink: 0; font-size: 14px; }
+.folder-browser .entry .entry-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Loading and error states */
+.folder-browser .loading { text-align: center; padding: 20px; color: #8892b0; font-size: 13px; }
+.folder-browser .error { text-align: center; padding: 12px; color: #e94560; font-size: 13px; background: rgba(233,69,96,0.1); border-radius: 4px; }
+
+/* Modal footer */
+.folder-browser .modal-footer { padding: 12px 16px; border-top: 1px solid #0f3460; text-align: right; }
+.folder-browser .select-btn { background: #e94560; color: #fff; border: none; padding: 8px 20px; border-radius: 6px; font-size: 14px; cursor: pointer; }
+.folder-browser .select-btn:hover { opacity: 0.9; }

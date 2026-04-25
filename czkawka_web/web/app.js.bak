@@ -16,10 +16,48 @@ const STATE = {
     summary: null,
     groups: [],
     tool: null,
-    sourceMap: {},           // { [groupIdx: number]: string } — one source per group
-    linkedPaths: new Set(),  // paths hardlinked in this session
-    hideLinked: false,       // toggle to hide already-linked files
-    resultsCache: {},        // { [toolId: string]: { summary, groups, checkingMethod, tool, linkedPaths: string[] } }
+    sourceMap: {},
+    linkedPaths: new Set(),
+    hideLinked: false,
+    resultsCache: {},
+
+    // Feature #6 – Recent Directories
+    recentDirs: JSON.parse(localStorage.getItem('czkawka_recent_dirs') || '[]'),
+
+    // Feature #4 – Sortable Results
+    sortColumn: null,
+    sortDirection: 'none', // 'none' | 'asc' | 'desc'
+
+    // Feature #5 – Gallery / List toggle
+    viewMode: 'list', // 'list' | 'gallery'
+
+    // Shared selection set (used by both list and gallery views)
+    _selection: new Set(),
+    _fileIndex: [],
+};
+
+// --- Sort column definitions per tool --------------------------------
+const SORT_COLUMNS = {
+    duplicates: [
+        { key: 'path',     label: 'Path',     getValue: (f) => f.path.toLowerCase() },
+        { key: 'size',     label: 'Size',     getValue: (f) => f.size },
+        { key: 'modified', label: 'Modified', getValue: (f) => f.modified_date || 0 },
+    ],
+    'similar-images': [
+        { key: 'path',       label: 'Path',       getValue: (f) => f.path.toLowerCase() },
+        { key: 'similarity', label: 'Diff',       getValue: (f) => f.similarity ?? 0 },
+        { key: 'resolution', label: 'Resolution', getValue: (f) => (f.width || 0) * (f.height || 0) },
+        { key: 'size',       label: 'Size',       getValue: (f) => f.size },
+    ],
+    'similar-videos': [
+        { key: 'path',       label: 'Path',       getValue: (f) => f.path.toLowerCase() },
+        { key: 'similarity', label: 'Diff',       getValue: (f) => f.similarity ?? 0 },
+        { key: 'duration',   label: 'Duration',   getValue: (f) => f.duration || 0 },
+        { key: 'codec',      label: 'Codec',      getValue: (f) => (f.codec || '').toLowerCase() },
+        { key: 'fps',        label: 'FPS',        getValue: (f) => f.fps ?? 0 },
+        { key: 'resolution', label: 'Resolution', getValue: (f) => (f.width || 0) * (f.height || 0) },
+        { key: 'size',       label: 'Size',       getValue: (f) => f.size },
+    ],
 };
 
 // DOM refs
@@ -74,6 +112,10 @@ function selectTool(toolId) {
 
     STATE.activeTool = tool;
     STATE.hideLinked = false;
+    STATE.sortColumn = null;
+    STATE.sortDirection = 'none';
+    STATE.viewMode = 'list';
+    STATE._selection = new Set();
     $$('#tools button').forEach(b => b.classList.toggle('active', b.dataset.toolId === toolId));
     renderToolOptions();
 
@@ -166,12 +208,14 @@ function renderToolOptions() {
 function addIncluded(path) {
     if (!path || STATE.includedPaths.includes(path)) return;
     STATE.includedPaths.push(path);
+    saveToRecentDirs(path);
     renderDirs();
 }
 
 function addExcluded(path) {
     if (!path || STATE.excludedPaths.includes(path)) return;
     STATE.excludedPaths.push(path);
+    saveToRecentDirs(path);
     renderDirs();
 }
 
@@ -187,11 +231,79 @@ function removeExcluded(path) {
 
 function renderDirs() {
     includedList.innerHTML = STATE.includedPaths.map(p =>
-        `<div class="dir-item"><span>${escHtml(p)}</span><span class="remove" onclick="removeIncluded('${escHtml(p)}')">✕</span></div>`
+        `<div class="dir-item"><span>${escHtml(p)}</span><span class="remove" onclick="removeIncluded('${escAttr(p)}')">✕</span></div>`
     ).join('');
     excludedList.innerHTML = STATE.excludedPaths.map(p =>
-        `<div class="dir-item"><span>${escHtml(p)}</span><span class="remove" onclick="removeExcluded('${escHtml(p)}')">✕</span></div>`
+        `<div class="dir-item"><span>${escHtml(p)}</span><span class="remove" onclick="removeExcluded('${escAttr(p)}')">✕</span></div>`
     ).join('');
+}
+
+// --- Feature #6: Recent Directories ----------------------------------
+function saveToRecentDirs(path) {
+    // De-duplicate: remove existing entry
+    const idx = STATE.recentDirs.indexOf(path);
+    if (idx !== -1) STATE.recentDirs.splice(idx, 1);
+
+    // Insert at front (most recent first)
+    STATE.recentDirs.unshift(path);
+
+    // Cap at 20
+    if (STATE.recentDirs.length > 20) {
+        STATE.recentDirs.length = 20;
+    }
+
+    localStorage.setItem('czkawka_recent_dirs', JSON.stringify(STATE.recentDirs));
+    renderRecentDirs('included');
+    renderRecentDirs('excluded');
+}
+
+function renderRecentDirs(target) {
+    const container = document.querySelector(`.recent-dirs-list[data-target="${target}"]`);
+    if (!container) return;
+
+    if (STATE.recentDirs.length === 0) {
+        container.innerHTML = '<div class="recent-dir-empty">(no recent directories)</div>';
+        return;
+    }
+
+    container.innerHTML = STATE.recentDirs.map(p =>
+        `<div class="recent-dir-item" data-path="${escAttr(p)}">${escHtml(p)}</div>`
+    ).join('');
+
+    // Bind click handlers
+    container.querySelectorAll('.recent-dir-item').forEach(el => {
+        el.addEventListener('click', () => {
+            const path = el.dataset.path;
+            if (target === 'included') {
+                addIncluded(path);
+            } else {
+                addExcluded(path);
+            }
+            // Close the dropdown
+            const dd = el.closest('.recent-dirs-dropdown');
+            if (dd) dd.classList.add('hidden');
+        });
+    });
+}
+
+function clearRecentDirs() {
+    STATE.recentDirs = [];
+    localStorage.removeItem('czkawka_recent_dirs');
+    renderRecentDirs('included');
+    renderRecentDirs('excluded');
+
+    // Close both dropdowns
+    $$('.recent-dirs-dropdown').forEach(dd => dd.classList.add('hidden'));
+    $$('.recent-dirs-toggle').forEach(t => t.classList.remove('open'));
+}
+
+function toggleRecentDirs(target) {
+    const dd = document.querySelector(`.recent-dirs-dropdown[data-target="${target}"]`);
+    if (!dd) return;
+    dd.classList.toggle('hidden');
+
+    const toggle = document.querySelector(`.recent-dirs-toggle[data-target="${target}"]`);
+    if (toggle) toggle.classList.toggle('open');
 }
 
 // --- Scan ---
@@ -220,7 +332,6 @@ async function startScan() {
 
     const id = STATE.activeTool.id;
 
-    // Tool-specific options
     if (id === 'duplicates') {
         body.checking_method = $('#dup-method').value;
         body.hash_type = $('#dup-hash').value;
@@ -307,36 +418,21 @@ function connectWebSocket(scanId) {
     };
 }
 
-/// Scan groups for files sharing the same inode (existing hardlinks) and
-/// populate STATE.linkedPaths so the UI can show the "(Linked)" tag.
-/// All files that share an inode get the tag (not just the redundant copies).
 function detectHardlinksInResults() {
-    console.log('[detectHardlinksInResults] tool:', STATE.tool, 'groups:', STATE.groups.length);
-    let totalFiles = 0;
-    let filesWithInode = 0;
-    let matches = 0;
     for (const group of STATE.groups) {
         const files = group.files || [];
-        const seen = new Map(); // inode → path of first occurrence
+        const seen = new Map();
         for (const f of files) {
-            totalFiles++;
             const ino = f.inode;
-            if (!ino || ino === 0) {
-                console.log('[detect] NO INODE for:', f.path, 'inode:', ino);
-                continue;
-            }
-            filesWithInode++;
+            if (!ino || ino === 0) continue;
             if (seen.has(ino)) {
-                matches++;
                 STATE.linkedPaths.add(f.path);
                 STATE.linkedPaths.add(seen.get(ino));
-                console.log('[detect] HIT inode:', ino, 'between', seen.get(ino), 'and', f.path);
             } else {
                 seen.set(ino, f.path);
             }
         }
     }
-    console.log('[detectHardlinksInResults] totalFiles:', totalFiles, 'withInode:', filesWithInode, 'matches:', matches, 'linkedPaths:', [...STATE.linkedPaths]);
 }
 
 async function fetchResults(scanId) {
@@ -355,7 +451,6 @@ async function fetchResults(scanId) {
             STATE.linkedPaths = new Set();
             detectHardlinksInResults();
 
-            // Cache the results for this tool
             STATE.resultsCache[STATE.activeTool.id] = {
                 summary: STATE.summary,
                 groups: STATE.groups,
@@ -386,12 +481,18 @@ function clearResults() {
     resultsHeader.innerHTML = '';
     resultsSummary.textContent = '';
     resultsActions.innerHTML = '';
+    $('#gallery-view').style.display = 'none';
     STATE.summary = null;
     STATE.groups = [];
     STATE.tool = null;
     STATE.sourceMap = {};
     STATE.linkedPaths = new Set();
     STATE.hideLinked = false;
+    STATE.sortColumn = null;
+    STATE.sortDirection = 'none';
+    STATE.viewMode = 'list';
+    STATE._selection = new Set();
+    STATE._fileIndex = [];
 }
 
 function formatSize(bytes) {
@@ -415,13 +516,52 @@ function formatDuration(secs) {
     return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+// --- Feature #4: Sortable Results ---
+function handleSortClick(columnKey) {
+    if (STATE.sortColumn === columnKey) {
+        // Cycle: asc → desc → none
+        if (STATE.sortDirection === 'asc') {
+            STATE.sortDirection = 'desc';
+        } else if (STATE.sortDirection === 'desc') {
+            STATE.sortColumn = null;
+            STATE.sortDirection = 'none';
+        }
+    } else {
+        STATE.sortColumn = columnKey;
+        STATE.sortDirection = 'asc';
+    }
+    renderResults();
+}
+
+function sortFilesFlat(files, columnKey, direction) {
+    const tool = STATE.tool;
+    const cols = SORT_COLUMNS[tool];
+    if (!cols) return files;
+
+    const colDef = cols.find(c => c.key === columnKey);
+    if (!colDef) return files;
+
+    const multiplier = direction === 'asc' ? 1 : -1;
+
+    return [...files].sort((a, b) => {
+        const va = colDef.getValue(a.file);
+        const vb = colDef.getValue(b.file);
+
+        if (typeof va === 'string' && typeof vb === 'string') {
+            return va.localeCompare(vb) * multiplier;
+        }
+        // numeric
+        return ((va || 0) - (vb || 0)) * multiplier;
+    });
+}
+
 function renderResults() {
     const { groups, summary, tool } = STATE;
     const totalFiles = summary && summary.files ? summary.files : 0;
     const totalGroups = summary && summary.groups ? summary.groups : 0;
     const lostSpace = summary && summary.lost_space ? summary.lost_space : 0;
 
-    // Action buttons — all tools get Delete + Hardlink + Hide linked
+    // Action buttons
     resultsActions.innerHTML = '';
 
     const deleteBtn = document.createElement('button');
@@ -450,6 +590,22 @@ function renderResults() {
     hideLabel.appendChild(document.createTextNode(' Hide already-linked files'));
     resultsActions.appendChild(hideLabel);
 
+    // Feature #5: View toggle for similar-images
+    if (tool === 'similar-images') {
+        const toggleGroup = document.createElement('div');
+        toggleGroup.className = 'view-toggle';
+        toggleGroup.innerHTML = `
+            <button class="view-toggle-btn ${STATE.viewMode === 'list' ? 'active' : ''}" data-view="list">List</button>
+            <button class="view-toggle-btn ${STATE.viewMode === 'gallery' ? 'active' : ''}" data-view="gallery">Gallery</button>
+        `;
+        toggleGroup.addEventListener('click', (e) => {
+            const btn = e.target.closest('.view-toggle-btn');
+            if (!btn) return;
+            setViewMode(btn.dataset.view);
+        });
+        resultsActions.appendChild(toggleGroup);
+    }
+
     if (totalFiles > 0) {
         const summaryParts = [];
         if (tool === 'duplicates') {
@@ -465,11 +621,33 @@ function renderResults() {
         resultsSummary.textContent = 'No results found';
     }
 
+    // Route to gallery view if applicable
+    if (tool === 'similar-images' && STATE.viewMode === 'gallery') {
+        renderGalleryView();
+        return;
+    }
+
+    // --- List view (table) ---
+    const tableWrapper = $('#results-table-wrapper');
+    tableWrapper.style.display = 'block';
+    const galleryView = $('#gallery-view');
+    if (galleryView) galleryView.style.display = 'none';
+
     // Table header
     resultsHeader.innerHTML = buildResultsHeader(tool);
 
+    // Select-all checkbox binding
     $('#select-all')?.addEventListener('change', (e) => {
-        $$('#results-body tr:not(.group-header) input[type="checkbox"]').forEach(cb => cb.checked = e.target.checked);
+        const checked = e.target.checked;
+        $$('#results-body tr:not(.group-header) input[type="checkbox"]').forEach(cb => cb.checked = checked);
+        if (checked) {
+            $$('#results-body tr:not(.group-header)').forEach(tr => {
+                const idx = parseInt(tr.dataset.fileIdx);
+                if (!isNaN(idx)) STATE._selection.add(idx);
+            });
+        } else {
+            STATE._selection.clear();
+        }
     });
 
     if (!groups || groups.length === 0) {
@@ -477,156 +655,178 @@ function renderResults() {
         return;
     }
 
-    // Track group index for data attributes — _fileIndex must match rendered rows exactly
+    // Build flat file list with group info for sorting
     let globalFileIdx = 0;
     let rows = [];
     STATE._fileIndex = [];
+    let flatFiles = []; // [{file, groupIdx, group}]
 
     groups.forEach((group, gi) => {
         const allFiles = group.files || [];
         if (allFiles.length === 0) return;
 
-        // Determine if the entire group is one hardlink cluster (all files share one inode)
         const uniqueInodes = new Set(allFiles.map(f => f.inode).filter(i => i && i > 0));
         const allSameInode = uniqueInodes.size <= 1 && allFiles.every(f => f.inode && f.inode > 0);
-
-        // Skip the whole group when hide-linked is active AND every file in the group
-        // shares the same inode (i.e., the group is fully hardlinked).
         if (STATE.hideLinked && allSameInode) return;
 
-        // Files to render — when hide-linked is active with mixed groups,
-        // show everything (individual files are never hidden, only whole groups
-        // where every file shares the same inode).
         const files = allFiles;
-
         if (files.length === 0) return;
 
-        // Group header row
-        const groupSize = group.size || 0;
-        const groupName = group.name || '';
-        const similarity = group.similarity || 0;
+        files.forEach(file => {
+            flatFiles.push({ file, groupIdx: gi, group });
+        });
+    });
 
-        // Count linked files in this group (for header display)
-        const linkedCount = STATE.hideLinked
-            ? 0
-            : allFiles.filter(f => STATE.linkedPaths.has(f.path)).length;
-        const linkedSuffix = linkedCount > 0 ? ` (${linkedCount} linked)` : '';
+    // Apply sorting if active
+    const isSorted = STATE.sortColumn && STATE.sortDirection !== 'none';
+    const sortedFlat = isSorted ? sortFilesFlat(flatFiles, STATE.sortColumn, STATE.sortDirection) : null;
 
-        let headerLabel;
-        if (tool === 'similar-images') {
-            headerLabel = `Group ${gi + 1} – similarity ${similarity}% – ${files.length} files${linkedSuffix}`;
-        } else if (tool === 'similar-videos') {
-            headerLabel = `Group ${gi + 1} – similarity ${similarity}% – ${files.length} similar videos${linkedSuffix}`;
-        } else if (groupName) {
-            headerLabel = `Group ${gi + 1} – "${escHtml(groupName)}" – ${files.length} files${linkedSuffix}`;
-        } else {
-            headerLabel = `Group ${gi + 1} – ${files.length} files – ${formatSize(groupSize)}${linkedSuffix}`;
+    // Build rows from flat list (sorted or unsorted)
+    const usedGroups = new Set();
+
+    const processFile = (ff) => {
+        const { file, groupIdx, group } = ff;
+        const gi = groupIdx;
+
+        // Emit group header if first time seeing this group
+        if (!usedGroups.has(gi)) {
+            usedGroups.add(gi);
+            const allFiles = group.files || [];
+            const groupSize = group.size || 0;
+            const groupName = group.name || '';
+            const similarity = group.similarity || 0;
+            const linkedCount = allFiles.filter(f => STATE.linkedPaths.has(f.path)).length;
+            const linkedSuffix = linkedCount > 0 ? ` (${linkedCount} linked)` : '';
+
+            let headerLabel;
+            if (tool === 'similar-images') {
+                headerLabel = `Group ${gi + 1} – similarity ${similarity}% – ${allFiles.length} files${linkedSuffix}`;
+            } else if (tool === 'similar-videos') {
+                headerLabel = `Group ${gi + 1} – similarity ${similarity}% – ${allFiles.length} similar videos${linkedSuffix}`;
+            } else if (groupName) {
+                headerLabel = `Group ${gi + 1} – "${escHtml(groupName)}" – ${allFiles.length} files${linkedSuffix}`;
+            } else {
+                headerLabel = `Group ${gi + 1} – ${allFiles.length} files – ${formatSize(groupSize)}${linkedSuffix}`;
+            }
+
+            const colspan = tool === 'similar-images' ? 7 : tool === 'similar-videos' ? 9 : 6;
+            rows.push(`<tr class="group-header"><td colspan="${colspan}" style="font-weight:bold;font-size:13px;padding:8px 10px">${escHtml(headerLabel)}</td></tr>`);
         }
 
-        // colspan = all data columns + checkbox + action column
-        const colspan = tool === 'similar-images' ? 7 : tool === 'similar-videos' ? 9 : 6;
-        rows.push(`<tr class="group-header"><td colspan="${colspan}" style="font-weight:bold;font-size:13px;padding:8px 10px">${escHtml(headerLabel)}</td></tr>`);
+        const path = file.path || '';
+        const size = file.size || 0;
+        const idx = globalFileIdx++;
+        STATE._fileIndex.push(file);
+        const groupSource = STATE.sourceMap[gi];
+        const isSource = groupSource === path;
+        const isLinked = STATE.linkedPaths.has(path);
 
-        // File rows
-        files.forEach((file) => {
-            const path = file.path || '';
-            const size = file.size || 0;
-            const idx = globalFileIdx++;
-            STATE._fileIndex.push(file);
-            const groupSource = STATE.sourceMap[gi];
-            const isSource = groupSource === path;
-            const isLinked = STATE.linkedPaths.has(path);
+        const mdate = file.modified_date || 0;
+        const hash = file.hash || '';
+        const hashCell = STATE.checkingMethod === 'Hash' ? `<td style="font-family:monospace;font-size:11px">${escHtml(hash.substring(0, 12))}</td>` : '';
 
-            const mdate = file.modified_date || 0;
-            const hash = file.hash || '';
-            const hashCell = STATE.checkingMethod === 'Hash' ? `<td style="font-family:monospace;font-size:11px">${escHtml(hash.substring(0, 12))}</td>` : '';
+        const isChecked = STATE._selection.has(idx);
+        const checkboxCell = `<td><input type="checkbox" data-file-idx="${idx}" ${isChecked ? 'checked' : ''}></td>`;
 
-            const checkboxCell = `<td><input type="checkbox" data-file-idx="${idx}"></td>`;
+        let extraCells = '';
+        let pathColspan = '';
 
-            // Build cells based on tool type
-            let extraCells = '';
-            let pathColspan = '';
+        if (tool === 'similar-images') {
+            const width = file.width || 0;
+            const height = file.height || 0;
+            const similarity = file.similarity ?? 0;
+            const resolution = width && height ? `${width}×${height}` : '—';
+            const thumbnailUrl = `/api/preview/image?path=${encodeURIComponent(path)}`;
 
-            if (tool === 'similar-images') {
-                const width = file.width || 0;
-                const height = file.height || 0;
-                const similarity = file.similarity ?? 0;
-                const resolution = width && height ? `${width}×${height}` : '—';
-                const thumbnailUrl = `/api/preview/image?path=${encodeURIComponent(path)}`;
+            extraCells = `
+                <td style="white-space:nowrap">${similarity}%</td>
+                <td style="white-space:nowrap">${resolution}</td>
+                <td style="text-align:right;white-space:nowrap">${formatSize(size)}</td>`;
+            const linkedTag = isLinked ? ' <span class="linked-badge">(Linked)</span>' : '';
+            pathColspan = `
+                <td>
+                    <div class="file-cell-with-preview">
+                        <img class="preview-img" src="${thumbnailUrl}" alt="" loading="lazy">
+                        <span title="${escHtml(path)}">${escHtml(path)}${linkedTag}</span>
+                    </div>
+                </td>`;
+        } else if (tool === 'similar-videos') {
+            const duration = file.duration || 0;
+            const codec = file.codec || '—';
+            const fps = file.fps != null ? file.fps.toFixed(1) : '—';
+            const width = file.width || 0;
+            const height = file.height || 0;
+            const resolution = width && height ? `${width}×${height}` : '—';
+            const thumbPath = file.thumbnail_path || '';
+            const similarity = file.similarity ?? 0;
 
-                extraCells = `
-                    <td style="white-space:nowrap">${similarity}%</td>
-                    <td style="white-space:nowrap">${resolution}</td>
-                    <td style="text-align:right;white-space:nowrap">${formatSize(size)}</td>`;
-                const linkedTag = isLinked ? ' <span class="linked-badge">(Linked)</span>' : '';
+            extraCells = `
+                <td style="white-space:nowrap">${similarity}%</td>
+                <td style="white-space:nowrap">${formatDuration(duration)}</td>
+                <td style="white-space:nowrap">${escHtml(codec)}</td>
+                <td style="white-space:nowrap">${fps}</td>
+                <td style="white-space:nowrap">${resolution}</td>
+                <td style="text-align:right;white-space:nowrap">${formatSize(size)}</td>`;
+            const linkedTag = isLinked ? '<span class="linked-badge">(Linked)</span>' : '';
+            const thumbnailUrl = thumbPath ? `/api/preview/video?path=${encodeURIComponent(thumbPath)}` : '';
+            if (thumbnailUrl) {
                 pathColspan = `
                     <td>
                         <div class="file-cell-with-preview">
                             <img class="preview-img" src="${thumbnailUrl}" alt="" loading="lazy">
-                            <span title="${escHtml(path)}">${escHtml(path)}${linkedTag}</span>
+                            <span class="file-cell-text" title="${escHtml(path)}">${escHtml(path)}</span>${linkedTag}
                         </div>
                     </td>`;
-            } else if (tool === 'similar-videos') {
-                const duration = file.duration || 0;
-                const codec = file.codec || '—';
-                const fps = file.fps != null ? file.fps.toFixed(1) : '—';
-                const width = file.width || 0;
-                const height = file.height || 0;
-                const resolution = width && height ? `${width}×${height}` : '—';
-                const thumbPath = file.thumbnail_path || '';
-                const similarity = file.similarity ?? 0;
-
-                extraCells = `
-                    <td style="white-space:nowrap">${similarity}%</td>
-                    <td style="white-space:nowrap">${formatDuration(duration)}</td>
-                    <td style="white-space:nowrap">${escHtml(codec)}</td>
-                    <td style="white-space:nowrap">${fps}</td>
-                    <td style="white-space:nowrap">${resolution}</td>
-                    <td style="text-align:right;white-space:nowrap">${formatSize(size)}</td>`;
-                const linkedTag = isLinked ? '<span class="linked-badge">(Linked)</span>' : '';
-                const thumbnailUrl = thumbPath ? `/api/preview/video?path=${encodeURIComponent(thumbPath)}` : '';
-                if (thumbnailUrl) {
-                    pathColspan = `
-                        <td>
-                            <div class="file-cell-with-preview">
-                                <img class="preview-img" src="${thumbnailUrl}" alt="" loading="lazy">
-                                <span class="file-cell-text" title="${escHtml(path)}">${escHtml(path)}</span>${linkedTag}
-                            </div>
-                        </td>`;
-                } else {
-                    pathColspan = `<td>${isLinked ? `<div class="path-with-badge"><span class="path-text" title="${escHtml(path)}">${escHtml(path)}</span>${linkedTag}</div>` : `<span class="path-text" title="${escHtml(path)}">${escHtml(path)}</span>`}</td>`;
-                }
             } else {
-                // duplicates / hardlink
-                extraCells = `
-                    <td style="text-align:right;white-space:nowrap">${formatSize(size)}</td>
-                    <td style="white-space:nowrap">${formatDate(mdate)}</td>
-                    ${hashCell}`;
-                const linkedTag = isLinked ? '<span class="linked-badge">(Linked)</span>' : '';
                 pathColspan = `<td>${isLinked ? `<div class="path-with-badge"><span class="path-text" title="${escHtml(path)}">${escHtml(path)}</span>${linkedTag}</div>` : `<span class="path-text" title="${escHtml(path)}">${escHtml(path)}</span>`}</td>`;
             }
+        } else {
+            extraCells = `
+                <td style="text-align:right;white-space:nowrap">${formatSize(size)}</td>
+                <td style="white-space:nowrap">${formatDate(mdate)}</td>
+                ${hashCell}`;
+            const linkedTag = isLinked ? '<span class="linked-badge">(Linked)</span>' : '';
+            pathColspan = `<td>${isLinked ? `<div class="path-with-badge"><span class="path-text" title="${escHtml(path)}">${escHtml(path)}</span>${linkedTag}</div>` : `<span class="path-text" title="${escHtml(path)}">${escHtml(path)}</span>`}</td>`;
+        }
 
-            // Action column — Set as source / Hardlink to source (all tools)
-            let actionCell;
-            if (isSource) {
-                actionCell = `<td><button class="source-btn active source-active-btn" data-group="${gi}" data-file-path="${escHtml(path)}">★ Source</button></td>`;
-            } else if (groupSource && !isLinked) {
-                actionCell = `<td><button class="source-btn hardlink-btn" data-group="${gi}" data-file-path="${escHtml(path)}" data-source="${escHtml(groupSource)}">Hardlink to source</button></td>`;
-            } else {
-                actionCell = `<td><button class="source-btn set-source-btn" data-group="${gi}" data-file-path="${escHtml(path)}">Set as source</button></td>`;
-            }
+        let actionCell;
+        if (isSource) {
+            actionCell = `<td><button class="source-btn active source-active-btn" data-group="${gi}" data-file-path="${escAttr(path)}">★ Source</button></td>`;
+        } else if (groupSource && !isLinked) {
+            actionCell = `<td><button class="source-btn hardlink-btn" data-group="${gi}" data-file-path="${escAttr(path)}" data-source="${escAttr(groupSource)}">Hardlink to source</button></td>`;
+        } else {
+            actionCell = `<td><button class="source-btn set-source-btn" data-group="${gi}" data-file-path="${escAttr(path)}">Set as source</button></td>`;
+        }
 
-            const rowClass = (isSource ? 'source-row' : 'file-row') + (isLinked ? ' row-linked' : '');
-            rows.push(`<tr class="${rowClass}" data-group="${gi}" data-file-idx="${idx}">
-                ${checkboxCell}
-                ${pathColspan}
-                ${extraCells}
-                ${actionCell}
-            </tr>`);
-        });
-    });
+        const rowClass = (isSource ? 'source-row' : 'file-row') + (isLinked ? ' row-linked' : '');
+        rows.push(`<tr class="${rowClass}" data-group="${gi}" data-file-idx="${idx}">
+            ${checkboxCell}
+            ${pathColspan}
+            ${extraCells}
+            ${actionCell}
+        </tr>`);
+    };
+
+    if (isSorted) {
+        sortedFlat.forEach(ff => processFile(ff));
+    } else {
+        flatFiles.forEach(ff => processFile(ff));
+    }
 
     resultsBody.innerHTML = rows.join('');
+
+    // Bind checkbox change handlers to sync with STATE._selection
+    $$('#results-body tr:not(.group-header) input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', () => {
+            const idx = parseInt(cb.dataset.fileIdx);
+            if (isNaN(idx)) return;
+            if (cb.checked) {
+                STATE._selection.add(idx);
+            } else {
+                STATE._selection.delete(idx);
+            }
+        });
+    });
 
     // Bind hardlink source buttons
     $$('.set-source-btn').forEach(btn => {
@@ -638,7 +838,6 @@ function renderResults() {
     });
     $$('.source-active-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            // Toggle off — clear source for this group
             const group = parseInt(btn.dataset.group);
             delete STATE.sourceMap[group];
             renderResults();
@@ -655,34 +854,81 @@ function renderResults() {
 }
 
 function buildResultsHeader(tool) {
+    const cols = SORT_COLUMNS[tool];
+    const headers = [];
+
+    // Checkbox column
+    headers.push('<th style="width:36px"><input type="checkbox" id="select-all"></th>');
+
+    // Path column (always first data column)
+    let pathLabel = 'Path';
+    const pathSort = STATE.sortColumn === 'path';
+    const pathArrow = pathSort
+        ? (STATE.sortDirection === 'asc' ? ' ▲' : STATE.sortDirection === 'desc' ? ' ▼' : '')
+        : '';
+    headers.push(`<th data-sort-col="path" class="${pathSort ? 'sort-active' : ''}" style="cursor:pointer">Path<span class="sort-indicator${pathSort ? ' active' : ''}">${pathArrow}</span></th>`);
+
     if (tool === 'similar-images') {
-        return '<tr><th style="width:36px"><input type="checkbox" id="select-all"></th>' +
-            '<th>Path</th><th style="width:80px">Diff</th><th style="width:90px">Resolution</th>' +
-            '<th style="width:80px">Size</th><th style="width:110px">Action</th></tr>';
+        // Diff, Resolution, Size
+        ['similarity', 'resolution', 'size'].forEach(key => {
+            const col = cols.find(c => c.key === key);
+            if (!col) return;
+            const isActive = STATE.sortColumn === key;
+            const arrow = isActive
+                ? (STATE.sortDirection === 'asc' ? ' ▲' : STATE.sortDirection === 'desc' ? ' ▼' : '')
+                : '';
+            const width = key === 'similarity' ? '80px' : key === 'resolution' ? '90px' : '80px';
+            headers.push(`<th data-sort-col="${key}" class="${isActive ? 'sort-active' : ''}" style="width:${width};cursor:pointer">${col.label}<span class="sort-indicator${isActive ? ' active' : ''}">${arrow}</span></th>`);
+        });
+    } else if (tool === 'similar-videos') {
+        // Diff, Duration, Codec, FPS, Resolution, Size
+        ['similarity', 'duration', 'codec', 'fps', 'resolution', 'size'].forEach(key => {
+            const col = cols.find(c => c.key === key);
+            if (!col) return;
+            const isActive = STATE.sortColumn === key;
+            const arrow = isActive
+                ? (STATE.sortDirection === 'asc' ? ' ▲' : STATE.sortDirection === 'desc' ? ' ▼' : '')
+                : '';
+            const widths = { similarity: '80px', duration: '80px', codec: '70px', fps: '60px', resolution: '90px', size: '80px' };
+            headers.push(`<th data-sort-col="${key}" class="${isActive ? 'sort-active' : ''}" style="width:${widths[key]};cursor:pointer">${col.label}<span class="sort-indicator${isActive ? ' active' : ''}">${arrow}</span></th>`);
+        });
+    } else {
+        // duplicates: Size, Modified, (Hash)
+        ['size', 'modified'].forEach(key => {
+            const col = cols.find(c => c.key === key);
+            if (!col) return;
+            const isActive = STATE.sortColumn === key;
+            const arrow = isActive
+                ? (STATE.sortDirection === 'asc' ? ' ▲' : STATE.sortDirection === 'desc' ? ' ▼' : '')
+                : '';
+            const width = key === 'size' ? '100px' : '160px';
+            headers.push(`<th data-sort-col="${key}" class="${isActive ? 'sort-active' : ''}" style="width:${width};cursor:pointer">${col.label}<span class="sort-indicator${isActive ? ' active' : ''}">${arrow}</span></th>`);
+        });
+        if (STATE.checkingMethod === 'Hash') {
+            headers.push('<th style="width:80px">Hash</th>');
+        }
     }
-    if (tool === 'similar-videos') {
-        return '<tr><th style="width:36px"><input type="checkbox" id="select-all"></th>' +
-            '<th>Path</th><th style="width:80px">Diff</th><th style="width:80px">Duration</th><th style="width:70px">Codec</th>' +
-            '<th style="width:60px">FPS</th><th style="width:90px">Resolution</th><th style="width:80px">Size</th>' +
-            '<th style="width:110px">Action</th></tr>';
-    }
-    // duplicates
-    return '<tr><th style="width:36px"><input type="checkbox" id="select-all"></th>' +
-        '<th>Path</th><th style="width:100px">Size</th><th style="width:160px">Modified</th>' +
-        (STATE.checkingMethod === 'Hash' ? '<th style="width:80px">Hash</th>' : '') +
-        '<th style="width:110px">Action</th></tr>';
+
+    // Action column
+    headers.push('<th style="width:110px">Action</th>');
+
+    return '<tr>' + headers.join('') + '</tr>';
 }
+
+// --- Feature #4: Sort click handler (event delegation on results-header) ---
+resultsHeader.addEventListener('click', (e) => {
+    const th = e.target.closest('th[data-sort-col]');
+    if (!th) return;
+    handleSortClick(th.dataset.sortCol);
+});
 
 // --- Hardlink source selection ---
 function setSourceFile(groupIdx, filePath) {
     if (STATE.sourceMap[groupIdx] === filePath) {
-        // Toggle off — remove source for this group
         delete STATE.sourceMap[groupIdx];
     } else {
         STATE.sourceMap[groupIdx] = filePath;
     }
-
-    // Re-render to update all buttons in the group
     renderResults();
 }
 
@@ -716,18 +962,30 @@ async function performHardlink(sourcePath, targetPath, groupIdx) {
 }
 
 async function hardlinkSelected() {
-    // Group checked files by their data-group attribute
+    // Read selected file indices from STATE._selection
+    const selectedIdxs = [...STATE._selection];
+    if (selectedIdxs.length === 0) {
+        statusBar.textContent = 'No files selected';
+        return;
+    }
+
     const byGroup = {};
-    $$('#results-body tr:not(.group-header) input[type="checkbox"]:checked').forEach(cb => {
-        const tr = cb.closest('tr');
-        if (!tr) return;
-        const group = parseInt(tr.dataset.group);
-        const fileIdx = parseInt(cb.dataset.fileIdx);
-        if (!isNaN(fileIdx) && STATE._fileIndex && STATE._fileIndex[fileIdx]) {
-            if (!byGroup[group]) byGroup[group] = [];
-            byGroup[group].push(STATE._fileIndex[fileIdx].path);
+    for (const idx of selectedIdxs) {
+        if (!STATE._fileIndex[idx]) continue;
+        const file = STATE._fileIndex[idx];
+        // Find which group this file belongs to
+        let fileGroup = -1;
+        for (let gi = 0; gi < STATE.groups.length; gi++) {
+            const files = STATE.groups[gi].files || [];
+            if (files.includes(file)) {
+                fileGroup = gi;
+                break;
+            }
         }
-    });
+        if (fileGroup === -1) continue;
+        if (!byGroup[fileGroup]) byGroup[fileGroup] = [];
+        byGroup[fileGroup].push(file.path);
+    }
 
     const groupEntries = Object.entries(byGroup);
     if (groupEntries.length === 0) {
@@ -735,7 +993,6 @@ async function hardlinkSelected() {
         return;
     }
 
-    // Build request pairs: process each group independently, skip already-linked files
     const allSources = [];
     const allTargets = [];
     let totalTargets = 0;
@@ -747,7 +1004,6 @@ async function hardlinkSelected() {
             statusBar.textContent = `Group ${groupIdx + 1}: no source set. Use "Set as source" first.`;
             return;
         }
-        // Filter out source file itself AND already-linked files
         const targets = paths.filter(p => p !== source && !STATE.linkedPaths.has(p));
         if (targets.length === 0) continue;
         for (const t of targets) {
@@ -779,7 +1035,6 @@ async function hardlinkSelected() {
         statusBar.textContent = `Hardlinked: ${result.hardlinked}, skipped: ${result.skipped}, failed: ${result.failed}`;
 
         if (result.hardlinked > 0 || result.skipped > 0) {
-            // Mark all targets as linked — files stay in groups, just dimmed
             for (const t of allTargets) STATE.linkedPaths.add(t);
             renderResults();
         }
@@ -790,13 +1045,18 @@ async function hardlinkSelected() {
 
 // --- Delete action ---
 async function deleteSelected() {
+    const selectedIdxs = [...STATE._selection];
+    if (selectedIdxs.length === 0) {
+        statusBar.textContent = 'No files selected';
+        return;
+    }
+
     const paths = [];
-    $$('#results-body tr:not(.group-header) input[type="checkbox"]:checked').forEach(cb => {
-        const fileIdx = parseInt(cb.dataset.fileIdx);
-        if (!isNaN(fileIdx) && STATE._fileIndex && STATE._fileIndex[fileIdx]) {
-            paths.push(STATE._fileIndex[fileIdx].path);
+    for (const idx of selectedIdxs) {
+        if (STATE._fileIndex[idx]) {
+            paths.push(STATE._fileIndex[idx].path);
         }
-    });
+    }
 
     if (paths.length === 0) {
         statusBar.textContent = 'No files selected';
@@ -829,6 +1089,8 @@ async function deleteSelected() {
             STATE.summary.groups = totalGroups;
         }
 
+        STATE._selection = new Set();
+
         if (totalFiles === 0) {
             clearResults();
             if (result.failed === 0) {
@@ -842,10 +1104,101 @@ async function deleteSelected() {
     }
 }
 
+// --- Feature #5: Gallery/List Toggle ---
+function setViewMode(mode) {
+    STATE.viewMode = mode;
+    renderResults();
+}
+
+function renderGalleryView() {
+    const { groups, tool } = STATE;
+    const tableWrapper = $('#results-table-wrapper');
+    tableWrapper.style.display = 'none';
+    const galleryView = $('#gallery-view');
+    galleryView.style.display = 'block';
+
+    let html = '<div class="gallery-grid">';
+    let globalFileIdx = 0;
+    STATE._fileIndex = [];
+
+    groups.forEach((group, gi) => {
+        const allFiles = group.files || [];
+        if (allFiles.length === 0) return;
+
+        const uniqueInodes = new Set(allFiles.map(f => f.inode).filter(i => i && i > 0));
+        const allSameInode = uniqueInodes.size <= 1 && allFiles.every(f => f.inode && f.inode > 0);
+        if (STATE.hideLinked && allSameInode) return;
+
+        const files = allFiles;
+        if (files.length === 0) return;
+
+        // Group header
+        const similarity = group.similarity || 0;
+        const linkedCount = allFiles.filter(f => STATE.linkedPaths.has(f.path)).length;
+        const linkedSuffix = linkedCount > 0 ? ` (${linkedCount} linked)` : '';
+        html += `<div class="gallery-group-header">Group ${gi + 1} – similarity ${similarity}% – ${files.length} files${linkedSuffix}</div>`;
+
+        files.forEach(file => {
+            const path = file.path || '';
+            const size = file.size || 0;
+            const idx = globalFileIdx++;
+            STATE._fileIndex.push(file);
+            const isSelected = STATE._selection.has(idx);
+            const similarPct = file.similarity ?? similarity;
+            const width = file.width || 0;
+            const height = file.height || 0;
+            const resolution = width && height ? `${width}×${height}` : '';
+            const thumbnailUrl = `/api/preview/image?path=${encodeURIComponent(path)}`;
+            const filename = path.split('/').pop() || path;
+
+            html += `
+                <div class="gallery-card ${isSelected ? 'selected' : ''}" data-file-idx="${idx}">
+                    <img class="gallery-thumb" src="${thumbnailUrl}" alt="" loading="lazy">
+                    <span class="gallery-filename" title="${escAttr(path)}">${escHtml(filename)}</span>
+                    <span class="gallery-info">${similarPct}% · ${resolution} · ${formatSize(size)}</span>
+                    <div class="gallery-checkbox">✓</div>
+                </div>`;
+        });
+    });
+
+    // If no files after filtering, show a message
+    if (STATE._fileIndex.length === 0) {
+        html += '<div style="grid-column:1/-1;text-align:center;padding:40px;color:#8892b0">No files to display</div>';
+    }
+
+    html += '</div>';
+    galleryView.innerHTML = html;
+
+    // Bind gallery card click handlers
+    galleryView.querySelectorAll('.gallery-card').forEach(card => {
+        card.addEventListener('click', (e) => {
+            // Don't toggle if user clicked a link or button inside the card
+            if (e.target.closest('a, button')) return;
+
+            const idx = parseInt(card.dataset.fileIdx);
+            if (isNaN(idx)) return;
+
+            if (STATE._selection.has(idx)) {
+                STATE._selection.delete(idx);
+                card.classList.remove('selected');
+            } else {
+                STATE._selection.add(idx);
+                card.classList.add('selected');
+            }
+        });
+    });
+}
+
 // --- Helpers ---
 function escHtml(s) {
     if (!s) return '';
     return String(s).replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>').replace(/"/g, '"');
+}
+
+function escAttr(s) {
+    if (!s) return '';
+    // Escape for HTML attribute values (double-quoted attributes)
+    return String(s).replace(/&/g, '&').replace(/"/g, '"').replace(/'/g, ''');
 }
 
 // --- Folder browser modal ---
@@ -904,7 +1257,7 @@ async function navigateFolderBrowser(path) {
             const entryClass = entry.is_dir ? 'entry dir' : 'entry file';
             const icon = entry.is_dir ? '📁' : '📄';
             const escapedName = escHtml(entry.name);
-            const escapedPath = escHtml(entry.path);
+            const escapedPath = escAttr(entry.path);
 
             html += `<div class="${entryClass}" data-path="${escapedPath}" data-is-dir="${entry.is_dir}">
                 <span class="entry-icon">${icon}</span>
@@ -913,7 +1266,6 @@ async function navigateFolderBrowser(path) {
         }
         entryList.innerHTML = html;
 
-        // Bind click handlers on entries
         entryList.querySelectorAll('.entry').forEach(el => {
             el.addEventListener('click', () => {
                 const isDir = el.dataset.isDir === 'true';
@@ -929,7 +1281,7 @@ async function navigateFolderBrowser(path) {
     }
 }
 
-// --- Folder browser event binding ---
+// --- Event bindings ---
 document.querySelectorAll('.browse-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         openFolderBrowser(btn.dataset.target);
@@ -969,10 +1321,31 @@ $('#folder-browser-select').addEventListener('click', () => {
     closeFolderBrowser();
 });
 
-// Global keyboard shortcut: Escape closes the folder browser modal
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && $('#folder-browser-overlay').style.display === 'flex') {
         closeFolderBrowser();
+    }
+});
+
+// Recent dirs toggle buttons (delegated, since they're in index.html)
+document.addEventListener('click', (e) => {
+    const toggle = e.target.closest('.recent-dirs-toggle');
+    if (toggle) {
+        toggleRecentDirs(toggle.dataset.target);
+        return;
+    }
+
+    // Clear recent dirs
+    const clearBtn = e.target.closest('.recent-dirs-clear');
+    if (clearBtn) {
+        clearRecentDirs();
+        return;
+    }
+
+    // Close dropdown when clicking outside
+    if (!e.target.closest('.recent-dirs-dropdown') && !e.target.closest('.recent-dirs-toggle')) {
+        $$('.recent-dirs-dropdown').forEach(dd => dd.classList.add('hidden'));
+        $$('.recent-dirs-toggle').forEach(t => t.classList.remove('open'));
     }
 });
 
@@ -980,11 +1353,13 @@ document.addEventListener('keydown', (e) => {
 renderTools();
 renderToolOptions();
 
-// Scan and Stop button handlers
+// Init recent dirs dropdowns
+renderRecentDirs('included');
+renderRecentDirs('excluded');
+
 scanBtn.addEventListener('click', startScan);
 stopBtn.addEventListener('click', stopScan);
 
-// + button and Enter key handlers for manual path entry
 $('#add-included').addEventListener('click', () => addIncluded($('#new-included').value.trim()));
 $('#new-included').addEventListener('keydown', (e) => { if (e.key === 'Enter') addIncluded($('#new-included').value.trim()); });
 

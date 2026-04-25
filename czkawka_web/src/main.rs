@@ -28,6 +28,8 @@ async fn main() {
     };
 
     let app = Router::new()
+        // File browser
+        .route("/api/browse", get(api::browse::handle_browse))
         // Scan endpoints
         .route("/api/scan/duplicates", post(api::scan::scan_duplicates))
         .route("/api/scan/hardlink", post(api::scan::scan_hardlink))
