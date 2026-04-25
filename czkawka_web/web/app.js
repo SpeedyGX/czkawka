@@ -84,8 +84,12 @@ function selectTool(toolId) {
         STATE.groups = cached.groups;
         STATE.checkingMethod = cached.checkingMethod;
         STATE.tool = cached.tool;
-        STATE.linkedPaths = new Set(cached.linkedPaths || []);
         STATE.sourceMap = cached.sourceMap || {};
+
+        // Re-detect hardlinks from inodes — cached linkedPaths may be stale
+        STATE.linkedPaths = new Set();
+        detectHardlinksInResults();
+
         showResults();
     } else {
         clearResults();
@@ -307,21 +311,32 @@ function connectWebSocket(scanId) {
 /// populate STATE.linkedPaths so the UI can show the "(Linked)" tag.
 /// All files that share an inode get the tag (not just the redundant copies).
 function detectHardlinksInResults() {
+    console.log('[detectHardlinksInResults] tool:', STATE.tool, 'groups:', STATE.groups.length);
+    let totalFiles = 0;
+    let filesWithInode = 0;
+    let matches = 0;
     for (const group of STATE.groups) {
         const files = group.files || [];
         const seen = new Map(); // inode → path of first occurrence
         for (const f of files) {
+            totalFiles++;
             const ino = f.inode;
-            if (!ino || ino === 0) continue;
+            if (!ino || ino === 0) {
+                console.log('[detect] NO INODE for:', f.path, 'inode:', ino);
+                continue;
+            }
+            filesWithInode++;
             if (seen.has(ino)) {
-                // Any file sharing an inode → ALL of them are linked
+                matches++;
                 STATE.linkedPaths.add(f.path);
                 STATE.linkedPaths.add(seen.get(ino));
+                console.log('[detect] HIT inode:', ino, 'between', seen.get(ino), 'and', f.path);
             } else {
                 seen.set(ino, f.path);
             }
         }
     }
+    console.log('[detectHardlinksInResults] totalFiles:', totalFiles, 'withInode:', filesWithInode, 'matches:', matches, 'linkedPaths:', [...STATE.linkedPaths]);
 }
 
 async function fetchResults(scanId) {

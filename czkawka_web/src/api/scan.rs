@@ -15,18 +15,26 @@ use crate::scan_manager::ScanManager;
 
 /// Try to read the inode of a file. Returns 0 on any error.
 fn inode_of(path: &std::path::Path) -> u64 {
-    std::fs::metadata(path).map(|m| {
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::MetadataExt;
-            m.ino()
+    match std::fs::metadata(path) {
+        Ok(m) => {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::MetadataExt;
+                let ino = m.ino();
+                tracing::debug!("inode_of OK {} -> {}", path.display(), ino);
+                ino
+            }
+            #[cfg(not(unix))]
+            {
+                let _ = (&m,);
+                0
+            }
         }
-        #[cfg(not(unix))]
-        {
-            let _ = m;
+        Err(e) => {
+            tracing::warn!("inode_of FAIL {} -> {}", path.display(), e);
             0
         }
-    }).unwrap_or(0)
+    }
 }
 
 /// Shared application state.
@@ -444,6 +452,8 @@ pub(crate) async fn scan_similar_images(
             tool.set_included_paths(included);
             tool.set_excluded_paths(excluded);
             tool.set_recursive_search(req.recursive.unwrap_or(true));
+            // Keep hard-linked files in results (set to true keeps them visible)
+            tool.set_hide_hard_links(true);
 
             if !stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
                 tool.search(&stop_flag, Some(&tx));
@@ -580,6 +590,8 @@ pub(crate) async fn scan_similar_videos(
             tool.set_included_paths(included);
             tool.set_excluded_paths(excluded);
             tool.set_recursive_search(req.recursive.unwrap_or(true));
+            // Keep hard-linked files in results (set to true keeps them visible)
+            tool.set_hide_hard_links(true);
 
             if !stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
                 tool.search(&stop_flag, Some(&tx));
