@@ -46,6 +46,9 @@ export global Callabler {
     callback validate_regex(string) -> bool;
     callback sort_items(SortMode);
 
+    // Results filter
+    callback filter_results(string, int); // filter_text, column_idx (0=name, 1=path)
+
     // Preview
     // Parameters: path, crop_left, crop_top, crop_right, crop_bottom, original_width, original_height
     callback load_image_preview(string, int, int, int, int, int, int);

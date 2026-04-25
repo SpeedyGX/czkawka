@@ -8,6 +8,9 @@ export global GuiState {
     in-out property <length> app_height;
 
     in-out property <string> info_text: "Nothing to report";
+    // Results filter
+    in-out property <string> filter_text: "";
+    in-out property <int> filter_column_idx: 0; // 0 = File Name, 1 = Path
     in-out property <bool> preview_visible;
     in-out property <image> preview_image;
     in-out property <string> preview_image_path;

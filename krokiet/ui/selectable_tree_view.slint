@@ -1,5 +1,6 @@
-import { CheckBox, ListView, ScrollView, VerticalBox } from "std-widgets.slint";
+import { Button, CheckBox, ComboBox, LineEdit, ListView, ScrollView, VerticalBox } from "std-widgets.slint";
 import { ColorPalette } from "color_palette.slint";
+import { GuiState } from "gui_state.slint";
 import { SingleMainListModel, SortColumnMode } from "common.slint";
 import { Callabler } from "callabler.slint";
 import { FontSizes } from "fonts.slint";
@@ -36,6 +37,40 @@ export component SelectableTableView inherits Rectangle {
 
     VerticalBox {
         padding: 0px;
+
+        // Filter bar
+        HorizontalLayout {
+            padding: 4px;
+            spacing: 4px;
+
+            LineEdit {
+                horizontal-stretch: 1.0;
+                text: GuiState.filter_text;
+                edited => {
+                    GuiState.filter_text = self.text;
+                    Callabler.filter_results(self.text, GuiState.filter_column_idx);
+                }
+            }
+
+            ComboBox {
+                current_index <=> GuiState.filter_column_idx;
+                model: ["Name", "Path"];
+                selected => {
+                    Callabler.filter_results(GuiState.filter_text, GuiState.filter_column_idx);
+                }
+            }
+
+            Button {
+                text: "✕";
+                width: 24px;
+                clicked => {
+                    GuiState.filter_text = "";
+                    GuiState.filter_column_idx = 0;
+                    Callabler.filter_results("", 0);
+                }
+            }
+        }
+
         ScrollView {
             height: 30px;
             viewport-x <=> list_view.viewport-x;
