@@ -20,6 +20,10 @@ const STATE = {
     linkedPaths: new Set(),  // paths hardlinked in this session
     hideLinked: false,       // toggle to hide already-linked files
     resultsCache: {},        // { [toolId: string]: { summary, groups, checkingMethod, tool, linkedPaths: string[] } }
+    // Pagination
+    pageSize: 100,
+    currentPage: 1,
+    totalPages: 1,
 };
 
 // DOM refs
@@ -74,6 +78,7 @@ function selectTool(toolId) {
 
     STATE.activeTool = tool;
     STATE.hideLinked = false;
+    STATE.currentPage = 1;
     $$('#tools button').forEach(b => b.classList.toggle('active', b.dataset.toolId === toolId));
     renderToolOptions();
 
@@ -311,7 +316,6 @@ function connectWebSocket(scanId) {
 /// populate STATE.linkedPaths so the UI can show the "(Linked)" tag.
 /// All files that share an inode get the tag (not just the redundant copies).
 function detectHardlinksInResults() {
-    console.log('[detectHardlinksInResults] tool:', STATE.tool, 'groups:', STATE.groups.length);
     let totalFiles = 0;
     let filesWithInode = 0;
     let matches = 0;
@@ -322,7 +326,6 @@ function detectHardlinksInResults() {
             totalFiles++;
             const ino = f.inode;
             if (!ino || ino === 0) {
-                console.log('[detect] NO INODE for:', f.path, 'inode:', ino);
                 continue;
             }
             filesWithInode++;
@@ -330,13 +333,11 @@ function detectHardlinksInResults() {
                 matches++;
                 STATE.linkedPaths.add(f.path);
                 STATE.linkedPaths.add(seen.get(ino));
-                console.log('[detect] HIT inode:', ino, 'between', seen.get(ino), 'and', f.path);
             } else {
                 seen.set(ino, f.path);
             }
         }
     }
-    console.log('[detectHardlinksInResults] totalFiles:', totalFiles, 'withInode:', filesWithInode, 'matches:', matches, 'linkedPaths:', [...STATE.linkedPaths]);
 }
 
 async function fetchResults(scanId) {
@@ -353,6 +354,7 @@ async function fetchResults(scanId) {
             STATE.checkingMethod = data.results.checking_method;
             STATE.tool = data.results.tool || STATE.activeTool.id;
             STATE.linkedPaths = new Set();
+            STATE.currentPage = 1;
             detectHardlinksInResults();
 
             // Cache the results for this tool
@@ -374,7 +376,7 @@ async function fetchResults(scanId) {
     }
 }
 
-// --- Results rendering (grouped display) ---
+// --- Results rendering (grouped display with pagination) ---
 function showResults() {
     resultsPanel.style.display = 'block';
     renderResults();
@@ -392,6 +394,7 @@ function clearResults() {
     STATE.sourceMap = {};
     STATE.linkedPaths = new Set();
     STATE.hideLinked = false;
+    STATE.currentPage = 1;
 }
 
 function formatSize(bytes) {
@@ -417,11 +420,8 @@ function formatDuration(secs) {
 
 function renderResults() {
     const { groups, summary, tool } = STATE;
-    const totalFiles = summary && summary.files ? summary.files : 0;
-    const totalGroups = summary && summary.groups ? summary.groups : 0;
-    const lostSpace = summary && summary.lost_space ? summary.lost_space : 0;
 
-    // Action buttons — all tools get Delete + Hardlink + Hide linked
+    // --- Action buttons — all tools get Delete + Hardlink + Hide linked ---
     resultsActions.innerHTML = '';
 
     const deleteBtn = document.createElement('button');
@@ -444,12 +444,55 @@ function renderResults() {
     hideCb.checked = STATE.hideLinked;
     hideCb.addEventListener('change', () => {
         STATE.hideLinked = hideCb.checked;
+        STATE.currentPage = 1;
         renderResults();
     });
     hideLabel.appendChild(hideCb);
     hideLabel.appendChild(document.createTextNode(' Hide already-linked files'));
     resultsActions.appendChild(hideLabel);
 
+    // --- PASS 1: Pre-compute visible files and build _fileIndex ---
+    STATE._fileIndex = [];
+    const groupMetas = [];
+    let totalFiles = 0;
+    const totalGroups = groups.length;
+
+    for (const [gi, group] of groups.entries()) {
+        const allFiles = group.files || [];
+        if (allFiles.length === 0) continue;
+
+        // hideLinked logic: hide groups where ALL files share the same inode
+        let allSameInode = false;
+        if (STATE.hideLinked) {
+            const uniqueInodes = new Set(allFiles.map(f => f.inode).filter(i => i && i > 0));
+            allSameInode = uniqueInodes.size <= 1 && allFiles.every(f => f.inode && f.inode > 0);
+            if (allSameInode) continue;
+        }
+
+        const fileStartIdx = totalFiles;
+        for (const f of allFiles) {
+            STATE._fileIndex.push(f);
+            totalFiles++;
+        }
+        const fileEndIdx = totalFiles;
+
+        groupMetas.push({
+            gi,
+            group,
+            files: allFiles,
+            fileStartIdx,
+            fileEndIdx,
+        });
+    }
+
+    // --- Compute pagination ---
+    STATE.totalPages = Math.max(1, Math.ceil(totalFiles / STATE.pageSize));
+    if (STATE.currentPage > STATE.totalPages) STATE.currentPage = 1;
+    const pageStart = (STATE.currentPage - 1) * STATE.pageSize;
+    const pageEnd = Math.min(pageStart + STATE.pageSize, totalFiles);
+
+    // --- Summary text ---
+    const lostSpace = summary && summary.lost_space ? summary.lost_space : 0;
     if (totalFiles > 0) {
         const summaryParts = [];
         if (tool === 'duplicates') {
@@ -465,51 +508,32 @@ function renderResults() {
         resultsSummary.textContent = 'No results found';
     }
 
-    // Table header
+    // --- Table header ---
     resultsHeader.innerHTML = buildResultsHeader(tool);
 
-    $('#select-all')?.addEventListener('change', (e) => {
-        $$('#results-body tr:not(.group-header) input[type="checkbox"]').forEach(cb => cb.checked = e.target.checked);
-    });
-
-    if (!groups || groups.length === 0) {
-        resultsBody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:#8892b0">No files found</td></tr>';
+    // --- PASS 2: Build HTML for current page only ---
+    if (!groups || groups.length === 0 || totalFiles === 0) {
+        const colspan = tool === 'similar-images' ? 7 : tool === 'similar-videos' ? 9 : 6;
+        resultsBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align:center;padding:20px;color:#8892b0">No files found</td></tr>`;
+        renderPageControls(0);
         return;
     }
 
-    // Track group index for data attributes — _fileIndex must match rendered rows exactly
-    let globalFileIdx = 0;
     let rows = [];
-    STATE._fileIndex = [];
 
-    groups.forEach((group, gi) => {
-        const allFiles = group.files || [];
-        if (allFiles.length === 0) return;
+    for (const meta of groupMetas) {
+        const { gi, group, files, fileStartIdx, fileEndIdx } = meta;
 
-        // Determine if the entire group is one hardlink cluster (all files share one inode)
-        const uniqueInodes = new Set(allFiles.map(f => f.inode).filter(i => i && i > 0));
-        const allSameInode = uniqueInodes.size <= 1 && allFiles.every(f => f.inode && f.inode > 0);
+        // Does this group's file range overlap the current page?
+        if (fileStartIdx >= pageEnd || fileEndIdx <= pageStart) continue;
 
-        // Skip the whole group when hide-linked is active AND every file in the group
-        // shares the same inode (i.e., the group is fully hardlinked).
-        if (STATE.hideLinked && allSameInode) return;
-
-        // Files to render — when hide-linked is active with mixed groups,
-        // show everything (individual files are never hidden, only whole groups
-        // where every file shares the same inode).
-        const files = allFiles;
-
-        if (files.length === 0) return;
-
-        // Group header row
+        // --- Group header row ---
         const groupSize = group.size || 0;
         const groupName = group.name || '';
         const similarity = group.similarity || 0;
 
         // Count linked files in this group (for header display)
-        const linkedCount = STATE.hideLinked
-            ? 0
-            : allFiles.filter(f => STATE.linkedPaths.has(f.path)).length;
+        const linkedCount = files.filter(f => STATE.linkedPaths.has(f.path)).length;
         const linkedSuffix = linkedCount > 0 ? ` (${linkedCount} linked)` : '';
 
         let headerLabel;
@@ -523,16 +547,17 @@ function renderResults() {
             headerLabel = `Group ${gi + 1} – ${files.length} files – ${formatSize(groupSize)}${linkedSuffix}`;
         }
 
-        // colspan = all data columns + checkbox + action column
         const colspan = tool === 'similar-images' ? 7 : tool === 'similar-videos' ? 9 : 6;
         rows.push(`<tr class="group-header"><td colspan="${colspan}" style="font-weight:bold;font-size:13px;padding:8px 10px">${escHtml(headerLabel)}</td></tr>`);
 
-        // File rows
-        files.forEach((file) => {
+        // --- File rows for this group within page range ---
+        for (let fi = 0; fi < files.length; fi++) {
+            const idx = fileStartIdx + fi;
+            if (idx < pageStart || idx >= pageEnd) continue;
+
+            const file = files[fi];
             const path = file.path || '';
             const size = file.size || 0;
-            const idx = globalFileIdx++;
-            STATE._fileIndex.push(file);
             const groupSource = STATE.sourceMap[gi];
             const isSource = groupSource === path;
             const isLinked = STATE.linkedPaths.has(path);
@@ -550,12 +575,12 @@ function renderResults() {
             if (tool === 'similar-images') {
                 const width = file.width || 0;
                 const height = file.height || 0;
-                const similarity = file.similarity ?? 0;
+                const sim = file.similarity ?? 0;
                 const resolution = width && height ? `${width}×${height}` : '—';
                 const thumbnailUrl = `/api/preview/image?path=${encodeURIComponent(path)}`;
 
                 extraCells = `
-                    <td style="white-space:nowrap">${similarity}%</td>
+                    <td style="white-space:nowrap">${sim}%</td>
                     <td style="white-space:nowrap">${resolution}</td>
                     <td style="text-align:right;white-space:nowrap">${formatSize(size)}</td>`;
                 const linkedTag = isLinked ? ' <span class="linked-badge">(Linked)</span>' : '';
@@ -574,10 +599,10 @@ function renderResults() {
                 const height = file.height || 0;
                 const resolution = width && height ? `${width}×${height}` : '—';
                 const thumbPath = file.thumbnail_path || '';
-                const similarity = file.similarity ?? 0;
+                const sim = file.similarity ?? 0;
 
                 extraCells = `
-                    <td style="white-space:nowrap">${similarity}%</td>
+                    <td style="white-space:nowrap">${sim}%</td>
                     <td style="white-space:nowrap">${formatDuration(duration)}</td>
                     <td style="white-space:nowrap">${escHtml(codec)}</td>
                     <td style="white-space:nowrap">${fps}</td>
@@ -623,35 +648,13 @@ function renderResults() {
                 ${extraCells}
                 ${actionCell}
             </tr>`);
-        });
-    });
+        }
+    }
 
     resultsBody.innerHTML = rows.join('');
 
-    // Bind hardlink source buttons
-    $$('.set-source-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const group = parseInt(btn.dataset.group);
-            const filePath = btn.dataset.filePath;
-            setSourceFile(group, filePath);
-        });
-    });
-    $$('.source-active-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            // Toggle off — clear source for this group
-            const group = parseInt(btn.dataset.group);
-            delete STATE.sourceMap[group];
-            renderResults();
-        });
-    });
-    $$('.hardlink-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const group = parseInt(btn.dataset.group);
-            const filePath = btn.dataset.filePath;
-            const source = btn.dataset.source;
-            performHardlink(source, filePath, group);
-        });
-    });
+    // --- Page controls ---
+    renderPageControls(totalFiles);
 }
 
 function buildResultsHeader(tool) {
@@ -672,6 +675,93 @@ function buildResultsHeader(tool) {
         (STATE.checkingMethod === 'Hash' ? '<th style="width:80px">Hash</th>' : '') +
         '<th style="width:110px">Action</th></tr>';
 }
+
+function renderPageControls(totalFiles) {
+    const container = $('#page-controls');
+    if (!container) return;
+
+    if (totalFiles === 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    const { currentPage, totalPages, pageSize } = STATE;
+
+    container.innerHTML = `
+        <button id="page-prev" ${currentPage <= 1 ? 'disabled' : ''}>‹ Prev</button>
+        <span id="page-info">
+            Page
+            <input type="number" id="page-input" value="${currentPage}" min="1" max="${totalPages}">
+            / ${totalPages}
+        </span>
+        <button id="page-next" ${currentPage >= totalPages ? 'disabled' : ''}>Next ›</button>
+        <select id="page-size">
+            <option value="25" ${pageSize === 25 ? 'selected' : ''}>25 / page</option>
+            <option value="50" ${pageSize === 50 ? 'selected' : ''}>50 / page</option>
+            <option value="100" ${pageSize === 100 ? 'selected' : ''}>100 / page</option>
+            <option value="200" ${pageSize === 200 ? 'selected' : ''}>200 / page</option>
+            <option value="500" ${pageSize === 500 ? 'selected' : ''}>500 / page</option>
+        </select>
+    `;
+}
+
+// --- Event delegation ---
+
+// Delegated click on #results-body for action buttons (set-source, source-active, hardlink)
+// Bound once; survives innerHTML swaps because #results-body persists.
+resultsBody.addEventListener('click', (e) => {
+    const btn = e.target.closest('.set-source-btn, .source-active-btn, .hardlink-btn');
+    if (!btn) return;
+
+    const group = parseInt(btn.dataset.group);
+    const filePath = btn.dataset.filePath;
+
+    if (btn.classList.contains('set-source-btn')) {
+        setSourceFile(group, filePath);
+    } else if (btn.classList.contains('source-active-btn')) {
+        delete STATE.sourceMap[group];
+        renderResults();
+    } else if (btn.classList.contains('hardlink-btn')) {
+        const source = btn.dataset.source;
+        performHardlink(source, filePath, group);
+    }
+});
+
+// Delegated change on #results-header for select-all checkbox
+// The <thead> element persists across innerHTML swaps.
+resultsHeader.addEventListener('change', (e) => {
+    if (e.target.id === 'select-all') {
+        $$('#results-body tr:not(.group-header) input[type="checkbox"]')
+            .forEach(cb => cb.checked = e.target.checked);
+    }
+});
+
+// Delegated handlers for pagination controls on #results-panel
+resultsPanel.addEventListener('change', (e) => {
+    if (e.target.id === 'page-size') {
+        STATE.pageSize = parseInt(e.target.value);
+        STATE.currentPage = 1;
+        renderResults();
+    } else if (e.target.id === 'page-input') {
+        let page = parseInt(e.target.value);
+        if (isNaN(page) || page < 1) page = 1;
+        if (page > STATE.totalPages) page = STATE.totalPages;
+        STATE.currentPage = page;
+        renderResults();
+    }
+});
+
+resultsPanel.addEventListener('click', (e) => {
+    const pageBtn = e.target.closest('#page-prev, #page-next');
+    if (!pageBtn) return;
+    if (pageBtn.id === 'page-prev' && STATE.currentPage > 1) {
+        STATE.currentPage--;
+        renderResults();
+    } else if (pageBtn.id === 'page-next' && STATE.currentPage < STATE.totalPages) {
+        STATE.currentPage++;
+        renderResults();
+    }
+});
 
 // --- Hardlink source selection ---
 function setSourceFile(groupIdx, filePath) {
@@ -835,6 +925,10 @@ async function deleteSelected() {
                 statusBar.textContent = 'All files removed';
             }
         } else {
+            // Ensure current page still exists after deletion
+            if (STATE.currentPage > 1 && totalFiles <= (STATE.currentPage - 1) * STATE.pageSize) {
+                STATE.currentPage--;
+            }
             renderResults();
         }
     } catch (err) {

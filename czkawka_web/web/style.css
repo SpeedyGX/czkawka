@@ -138,3 +138,50 @@ tr.row-linked:hover { opacity: 0.75; }
 .folder-browser .modal-footer { padding: 12px 16px; border-top: 1px solid #0f3460; text-align: right; }
 .folder-browser .select-btn { background: #e94560; color: #fff; border: none; padding: 8px 20px; border-radius: 6px; font-size: 14px; cursor: pointer; }
 .folder-browser .select-btn:hover { opacity: 0.9; }
+
+/* Pagination controls */
+#page-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 10px;
+    font-size: 13px;
+    color: #8892b0;
+}
+#page-controls button {
+    background: #0f3460;
+    color: #ddd;
+    border: 1px solid #1a3a6a;
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+#page-controls button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+#page-controls button:hover:not(:disabled) {
+    background: #1a4a7a;
+}
+#page-input {
+    width: 50px;
+    background: #0f3460;
+    border: 1px solid #1a3a6a;
+    color: #eee;
+    padding: 4px 6px;
+    border-radius: 3px;
+    text-align: center;
+    font-size: 13px;
+}
+#page-size {
+    background: #0f3460;
+    color: #ddd;
+    border: 1px solid #1a3a6a;
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    margin-left: 8px;
+}
