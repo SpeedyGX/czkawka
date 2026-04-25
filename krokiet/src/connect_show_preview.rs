@@ -1,6 +1,6 @@
 use std::fs::metadata;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 use czkawka_core::common::image::{ImgResizeOptions, check_if_can_display_image, get_dynamic_image_from_path};
 use czkawka_core::helpers::debug_timer::Timer;
@@ -15,7 +15,7 @@ use crate::{ActiveTab, Callabler, GuiState, MainWindow, Settings};
 
 pub type ImageBufferRgba = image::ImageBuffer<image::Rgba<u8>, Vec<u8>>;
 
-pub(crate) fn connect_show_preview(app: &MainWindow, shared_models: Arc<Mutex<SharedModels>>) {
+pub(crate) fn connect_show_preview(app: &MainWindow, shared_models: Arc<RwLock<SharedModels>>) {
     // Register model metadata callback
     connect_load_metadata_for_row(app, shared_models.clone());
 
@@ -57,7 +57,7 @@ pub(crate) fn connect_show_preview(app: &MainWindow, shared_models: Arc<Mutex<Sh
 
             let images_in_thumbnails_line = if active_tab == ActiveTab::VideoOptimizer {
                 shared_models
-                    .lock()
+                    .read()
                     .expect("Failed to lock model mutex")
                     .shared_video_optimizer_state
                     .as_ref()

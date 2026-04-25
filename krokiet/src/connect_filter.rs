@@ -7,6 +7,10 @@ use crate::simpler_model::{SimplerSingleMainListModel, ToSimplerVec, ToSlintMode
 use crate::{ActiveTab, Callabler, GuiState, MainWindow, SingleMainListModel};
 
 /// Cache of unfiltered full models per active tab (as Send-safe simplified models).
+/// Limited to at most 2 entries to prevent unbounded memory growth when switching tabs.
+const FILTER_CACHE_MAX_ENTRIES: usize = 2;
+/// Tracks the order in which tabs were cached (most recent first) for LRU eviction.
+static FILTER_CACHE_ORDER: LazyLock<Mutex<Vec<ActiveTab>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 static FILTER_CACHE: LazyLock<Mutex<HashMap<ActiveTab, Vec<SimplerSingleMainListModel>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
@@ -46,10 +50,18 @@ pub(crate) fn connect_filter(app: &MainWindow) {
 
         let filter_lower = filter_text.to_lowercase();
 
-        // Cache the current (unfiltered) model if not already cached
+        // Cache the current (unfiltered) model if not already cached (LRU eviction)
         {
             let mut cache = FILTER_CACHE.lock().expect("FILTER_CACHE mutex poisoned");
             if !cache.contains_key(&active_tab) {
+                // Evict oldest entry when at capacity
+                if cache.len() >= FILTER_CACHE_MAX_ENTRIES {
+                    if let Ok(mut order) = FILTER_CACHE_ORDER.lock() {
+                        if let Some(oldest) = order.pop() {
+                            cache.remove(&oldest);
+                        }
+                    }
+                }
                 let all_items: Vec<SimplerSingleMainListModel> = active_tab
                     .get_tool_model(&app)
                     .to_simpler_enumerated_vec()
@@ -57,6 +69,11 @@ pub(crate) fn connect_filter(app: &MainWindow) {
                     .map(|(_, item)| item)
                     .collect();
                 cache.insert(active_tab, all_items);
+            }
+            // Update LRU order: move to front (most recently used)
+            if let Ok(mut order) = FILTER_CACHE_ORDER.lock() {
+                order.retain(|t| *t != active_tab);
+                order.push(active_tab);
             }
         }
 
@@ -86,9 +103,12 @@ pub(crate) fn connect_filter(app: &MainWindow) {
 }
 
 /// Clears the filter cache for a given tab (called when new scan data is loaded).
-#[expect(dead_code)]
+#[expect(dead_code, reason = "Available for use when scan data is reloaded")]
 pub(crate) fn clear_filter_cache(active_tab: ActiveTab) {
     if let Ok(mut cache) = FILTER_CACHE.lock() {
         cache.remove(&active_tab);
+    }
+    if let Ok(mut order) = FILTER_CACHE_ORDER.lock() {
+        order.retain(|t| *t != active_tab);
     }
 }

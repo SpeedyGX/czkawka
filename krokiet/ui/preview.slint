@@ -122,6 +122,46 @@ export component Preview inherits Rectangle {
     VerticalLayout {
         spacing: 0px;
 
+        // Close button bar to toggle preview visibility
+        Rectangle {
+            height: 24px;
+            background: ColorPalette.popup_background_title_line;
+
+            HorizontalLayout {
+                padding-left: 6px;
+                padding-right: 2px;
+                spacing: 0px;
+                Text {
+                    text: "Preview";
+                    font-size: FontSizes.small;
+                    font-weight: FontSizes.bold_weight;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1.0;
+                }
+                close_touch := TouchArea {
+                    width: 20px;
+                    height: 20px;
+                    Rectangle {
+                        width: 20px;
+                        height: 20px;
+                        background: close_touch.has-hover ? ColorPalette.list_view_item_selected_color : transparent;
+                        border-radius: 3px;
+                        Text {
+                            text: "✕";
+                            font-size: FontSizes.small;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                            width: parent.width;
+                            height: parent.height;
+                        }
+                    }
+                    clicked => {
+                        GuiState.preview_visible = false;
+                    }
+                }
+            }
+        }
+
         // Image area - limited to at most 70% of the panel
         Rectangle {
             max-height: parent.height * 0.7;

@@ -32,12 +32,8 @@ panic = "unwind"
 # It may cause some crashes, that are not handled via panic::catch_unwind, so feel free to disable it, if you want
 overflow-checks = true
 
-# LTO setting is disabled by default, because release mode is usually needed to develop app and compilation with LTO would take a lot of time
-# But it is used to optimize release builds(and probably also in CI, where time is not so important as in local development)
-# Fat lto, generates a lot smaller executable than thin lto
-# Also using codegen-units = 1, to generate smaller binaries
-#lto = "fat"
-#codegen-units = 1
+# LTO is off in the default release profile because local development iteration speed matters.
+# Two dedicated profiles below give a production-optimised binary.
 
 # Optimize all dependencies except application/workspaces, even in debug builds to get reasonable performance e.g. when opening images
 [profile.dev.package."*"] # OPT PACKAGES
@@ -68,7 +64,14 @@ debug-assertions = false
 debug = "full"
 strip = "none"
 
-# Unsafe profile, just to check, how fast and small app could be 
+# Production-optimised binary with full LTO and single codegen unit.
+[profile.release-lto]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+
+# Unsafe profile, just to check, how fast and small app could be
 [profile.fastest]
 inherits = "release"
 panic = "abort"

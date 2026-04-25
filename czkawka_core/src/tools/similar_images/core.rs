@@ -131,26 +131,29 @@ impl SimilarImages {
         );
 
         debug!("hash_images - start hashing images");
-        let (mut vec_file_entry, errors): (Vec<ImagesEntry>, Vec<String>) = non_cached_files_to_check
+        let mut vec_file_entry: Vec<ImagesEntry> = non_cached_files_to_check
             .into_par_iter()
-            .map(|(_s, file_entry)| {
+            .filter_map(|(_s, file_entry)| {
                 if check_if_stop_received(stop_flag) {
                     return None;
                 }
                 let size = file_entry.size;
-                let res = self.collect_image_file_entry(file_entry);
-                progress_handler.increase_items(1);
-                progress_handler.increase_size(size);
-
-                Some(res)
+                match self.collect_image_file_entry(file_entry) {
+                    Ok(entry) => {
+                        progress_handler.increase_items(1);
+                        progress_handler.increase_size(size);
+                        Some(entry)
+                    }
+                    Err(err) => {
+                        error!("Failed to hash image: {err}");
+                        progress_handler.increase_items(1);
+                        progress_handler.increase_size(size);
+                        None
+                    }
+                }
             })
-            .while_some()
-            .partition_map(|res| match res {
-                Ok(entry) => itertools::Either::Left(entry),
-                Err(err) => itertools::Either::Right(err),
-            });
+            .collect();
 
-        self.common_data.text_messages.errors.extend(errors);
         debug!("hash_images - end hashing {} images", vec_file_entry.len());
 
         progress_handler.join_thread();
@@ -284,45 +287,48 @@ impl SimilarImages {
         let mut hashes_parents: IndexMap<ImHash, u32> = Default::default(); // Hashes used as parent (hash, children_number_of_hash)
         let mut hashes_similarity: IndexMap<ImHash, (ImHash, u32)> = Default::default(); // Hashes used as child, (parent_hash, similarity)
 
-        // Check them in chunks, to decrease number of used memory
-        // Without chunks, every single hash would be compared to every other hash and generate really big amount of results
-        // With chunks we can save results to variables and later use such variables, to skip ones with too big difference
-        // Not really helpful, when not finding almost any duplicates, but with bigger amount of them, this should help a lot
-        let base_hashes_chunks = base_hashes.chunks(1000);
-        for chunk in base_hashes_chunks {
+        // Check them in chunks, to decrease number of used memory.
+        // Without chunks, every single hash would be compared to every other hash and generate really big amount of results.
+        // Chunk size is dynamic: larger sets use smaller relative chunks to bound memory,
+        // but we never go below 500 to keep parallel efficiency.
+        let num_cpus = std::thread::available_parallelism().map_or(4, |n| n.get());
+        let chunk_size = base_hashes.len().div_ceil(num_cpus * 4).max(500);
+        for chunk in base_hashes.chunks(chunk_size) {
             let partial_results = chunk
                 .into_par_iter()
-                .map(|hash_to_check| {
+                .filter_map(|hash_to_check| {
                     progress_handler.increase_items(1);
 
                     if check_if_stop_received(stop_flag) {
                         return None;
                     }
-                    let mut found_items = self
+                    let mut found_items: Vec<(u32, &ImHash)> = self
                         .bktree
                         .find(hash_to_check, tolerance)
                         .filter(|(similarity, compared_hash)| {
-                            *similarity != 0 && !hashes_parents.contains_key(*compared_hash) && !hashes_with_multiple_images.contains(*compared_hash)
-                        })
-                        .filter(|(similarity, compared_hash)| {
+                            // Skip self-match and hashes already claimed as parent or known multi-image
+                            if *similarity == 0 || hashes_parents.contains_key(*compared_hash) || hashes_with_multiple_images.contains(*compared_hash) {
+                                return false;
+                            }
+                            // If compared_hash already has a parent with equal or better similarity, skip
                             if let Some((_, other_similarity_with_parent)) = hashes_similarity.get(*compared_hash) {
-                                // If current hash is more similar to other hash than to current parent hash, then skip check earlier
-                                // Because there is no way to be more similar to other hash than to current parent hash
                                 if *similarity >= *other_similarity_with_parent {
                                     return false;
                                 }
                             }
                             true
                         })
-                        .collect::<Vec<_>>();
+                        .collect();
+
+                    // Prune hashes that found nothing and are not multi-image hashes
+                    if found_items.is_empty() && !hashes_with_multiple_images.contains(hash_to_check) {
+                        return None;
+                    }
 
                     // Sort by tolerance
                     found_items.sort_unstable_by_key(|f| f.0);
                     Some((hash_to_check, found_items))
                 })
-                .while_some()
-                // TODO - this filter move to into_par_iter above
-                .filter(|(original_hash, vec_similar_hashes)| !vec_similar_hashes.is_empty() || hashes_with_multiple_images.contains(*original_hash))
                 .collect::<Vec<_>>();
 
             if check_if_stop_received(stop_flag) {

@@ -16,8 +16,8 @@ mod temporary_files;
 mod video_optimizer;
 
 use std::rc::Rc;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
 
 use chrono::{Local, TimeZone, Utc};
 use crossbeam_channel::Sender;
@@ -55,7 +55,7 @@ pub struct ScanData {
     pub custom_settings: SettingsCustom,
     pub basic_settings: BasicSettings,
     pub combo_box_items: ComboBoxItems,
-    pub shared_models: Arc<Mutex<SharedModels>>,
+    pub shared_models: Arc<std::sync::RwLock<SharedModels>>,
     pub audio_player: Arc<AudioPlayer>,
 }
 
@@ -68,7 +68,7 @@ pub(crate) fn connect_scan_button(
     app: &MainWindow,
     progress_sender: Sender<ProgressData>,
     stop_flag: Arc<AtomicBool>,
-    shared_models: Arc<Mutex<SharedModels>>,
+    shared_models: Arc<std::sync::RwLock<SharedModels>>,
     audio_player: Arc<AudioPlayer>,
 ) {
     let a = app.as_weak();

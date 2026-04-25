@@ -1,7 +1,6 @@
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
 
 use chrono::{Local, TimeZone, Utc};
@@ -11,11 +10,12 @@ use log::error;
 use slint::{ComponentHandle, Model, SharedString};
 
 use crate::common::{StrDataDuplicateFiles, StrDataSimilarImages, StrDataSimilarMusic, StrDataSimilarVideos, StrDataVideoOptimizer};
+use std::sync::RwLock;
 use crate::shared_models::SharedModels;
 use crate::{ActiveTab, Callabler, GuiState, MainWindow, PreviewMetadata};
 
 /// Registers the `on_load_metadata_for_row` callback that reads model data.
-pub(crate) fn connect_load_metadata_for_row(app: &MainWindow, _shared_models: Arc<Mutex<SharedModels>>) {
+pub(crate) fn connect_load_metadata_for_row(app: &MainWindow, _shared_models: Arc<RwLock<SharedModels>>) {
     let a = app.as_weak();
     app.global::<Callabler>().on_load_metadata_for_row(move |idx| {
         let app = a.upgrade().expect("Failed to upgrade app in load_metadata_for_row");

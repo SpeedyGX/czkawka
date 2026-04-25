@@ -1,8 +1,6 @@
 // Remove console window in Windows OS
 #![windows_subsystem = "windows"]
-#![allow(clippy::unwrap_used)] // Cannot use due unwrap used in a lot of places in generated code
-#![allow(clippy::indexing_slicing)] // Cannot use due unwrap used in a lot of places in generated code
-#![allow(clippy::todo)] // Cannot use due unwrap used in a lot of places in generated code
+#![allow(clippy::todo)] // Generated code sometimes contains todo!()
 
 use std::rc::Rc;
 use std::sync::Arc;
@@ -80,13 +78,20 @@ mod model_operations;
 mod notification_manager;
 mod set_initial_gui_info;
 mod set_initial_scroll_list_data_indexes;
+mod active_tab_meta;
 mod settings;
 mod shared_models;
 mod simpler_model;
 #[cfg(test)]
 mod test_common;
 
-slint::include_modules!();
+// Generated Slint code uses unwrap/indexing in some callbacks.
+// Wrap in a sub-module so we can apply crate-level allows to the generated code only.
+mod generated_slint_code {
+    #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
+    slint::include_modules!();
+}
+pub use generated_slint_code::*;
 
 fn main() {
     register_image_decoding_hooks();

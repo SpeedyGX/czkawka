@@ -1,6 +1,6 @@
 pub(crate) mod custom_select;
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 use regex::Regex;
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
@@ -15,7 +15,7 @@ type SelectionResult = (u64, u64, ModelRc<SingleMainListModel>);
 
 // TODO optimize this, not sure if it is possible to not copy entire model to just select item
 // https://github.com/slint-ui/slint/discussions/4595
-pub(crate) fn connect_select(app: &MainWindow, shared_models: &Arc<Mutex<SharedModels>>) {
+pub(crate) fn connect_select(app: &MainWindow, shared_models: &Arc<RwLock<SharedModels>>) {
     set_select_buttons(app);
 
     let a = app.as_weak();
@@ -94,7 +94,7 @@ pub(crate) fn connect_select(app: &MainWindow, shared_models: &Arc<Mutex<SharedM
             let current_model = active_tab.get_tool_model(&app);
             let columns: Vec<CustomSelectColumnModel> = app.global::<GuiState>().get_custom_select_columns().iter().collect();
 
-            let leave_one_in_group = leave_one_in_group && (active_tab.get_is_header_mode() && !shared_models.lock().expect("Lock poisoned").get_use_reference_folders(active_tab));
+            let leave_one_in_group = leave_one_in_group && (active_tab.get_is_header_mode() && !shared_models.read().expect("RwLock poisoned").get_use_reference_folders(active_tab));
 
             let (checked_items, unchecked_items, new_model) =
                 custom_select::select_custom_columns(&current_model, active_tab, select_mode, &columns, case_sensitive, leave_one_in_group);

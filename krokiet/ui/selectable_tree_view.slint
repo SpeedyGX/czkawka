@@ -43,6 +43,14 @@ export component SelectableTableView inherits Rectangle {
             padding: 4px;
             spacing: 4px;
 
+            // Visual indicator strip when filter is active
+            Rectangle {
+                width: 3px;
+                height: 28px;
+                border-radius: 2px;
+                background: GuiState.filter_text != "" ? ColorPalette.compare_left_value_color : transparent;
+            }
+
             input_field := LineEdit {
                 horizontal-stretch: 1.0;
                 text: GuiState.filter_text;
@@ -460,25 +468,39 @@ export component SelectableTableView inherits Rectangle {
         }
     }
 
+    // Handles keyboard navigation for the result list.
+    // Uses only key-pressed because key-released does not reliably fire when the
+    // FocusScope has zero width (slint-ui/slint#3503). All active commands (arrows,
+    // page-up/down, home/end, space, enter, ctrl+A) are processed on press.
     focus_item := FocusScope {
-        // TODO hack works and not steal first click anymore, but key-released event is not working with it
-        // width: 0px; // Hack to not steal first click from other components - https://github.com/slint-ui/slint/issues/3503
-        // Hack not works https://github.com/slint-ui/slint/issues/3503#issuecomment-1817809834 because disables key-released event
-
-
-        key-released(event) => {
-            if (!self.visible || !self.has-focus) {
-                return accept;
-            }
-            released_key(event);
-            accept
-        }
+        width: 0px; // Do not steal first click from other components (#3503)
 
         key-pressed(event) => {
-            if (!self.visible || !self.has-focus) {
+            if (!self.visible) {
                 return accept;
             }
-            pressed_key(event);
+            if (event.text == " ") {
+                Callabler.row_reverse_checked_selection();
+            } else if (event.text == "\n") {
+                if (last_selected_idx != -1 && contains_data(last_selected_idx)) {
+                    Callabler.row_open_item_with_index(last_selected_idx);
+                }
+            } else if (event.text == Key.UpArrow) {
+                jump_up(event.modifiers, 1);
+            } else if (event.text == Key.DownArrow) {
+                jump_down(event.modifiers, 1);
+            } else if (event.text == Key.PageDown) {
+                jump_down(event.modifiers, get_number_of_items_to_skip());
+            } else if (event.text == Key.PageUp) {
+                jump_up(event.modifiers, get_number_of_items_to_skip());
+            } else if (event.text == Key.Home) {
+                jump_up(event.modifiers, root.values.length);
+            } else if (event.text == Key.End) {
+                jump_down(event.modifiers, root.values.length);
+            }
+            if ((event.text == "a" || event.text == "A") && event.modifiers.control && !event.modifiers.shift && !event.modifiers.alt && !event.modifiers.meta) {
+                Callabler.row_select_all();
+            }
             accept
         }
     }

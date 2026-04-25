@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 use czkawka_core::tools::video_optimizer::VideoOptimizerParameters;
 use rfd::FileDialog;
@@ -9,7 +9,7 @@ use crate::model_operations::get_checked_info_from_app;
 use crate::shared_models::SharedModels;
 use crate::{MainWindow, PopupRequest, Translations, flk};
 
-pub(crate) fn connect_show_confirmation(app: &MainWindow, shared_models: Arc<Mutex<SharedModels>>) {
+pub(crate) fn connect_show_confirmation(app: &MainWindow, shared_models: Arc<RwLock<SharedModels>>) {
     let a = app.as_weak();
     app.on_request_setup_action_popup(move |popup_request: PopupRequest| {
         let app = a.upgrade().expect("Failed to upgrade app :(");
@@ -105,7 +105,7 @@ pub(crate) fn connect_show_confirmation(app: &MainWindow, shared_models: Arc<Mut
                 base.push_str(format!("\n{}", flk!("rust_optimize_video_confirmation_number_simple", items = res.checked_items_number)).as_str());
                 translation.set_optimize_confirmation_text(base.into());
 
-                let shared_model = shared_models.lock();
+                let shared_model = shared_models.read();
                 let shared_model = shared_model.as_ref().expect("Failed to lock shared models");
                 let shared_model = shared_model.shared_video_optimizer_state.as_ref().expect("Item should be present for video optimizer");
                 data = if matches!(shared_model.get_params(), VideoOptimizerParameters::VideoCrop(_)) {

@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use num_enum::TryFromPrimitive;
 use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 
-use crate::{ActiveTab, ExcludedPathsModel, IncludedPathsModel, MainWindow, Settings, SingleMainListModel};
+use crate::{ActiveTab, ExcludedPathsModel, IncludedPathsModel, MainWindow, Settings};
 // Int model is used to store data in unchanged(* except that we need to split u64 into two i32) form and is used to sort/select data
 // Str model is used to display data in gui
 
@@ -451,46 +451,6 @@ impl ActiveTab {
         }
     }
 
-    // Remember to match updated this according to ui/main_lists.slint and connect_scan.rs files
-    pub(crate) fn get_str_path_idx(self) -> usize {
-        match self {
-            Self::EmptyFolders => StrDataEmptyFolders::Path as usize,
-            Self::EmptyFiles => StrDataEmptyFiles::Path as usize,
-            Self::SimilarImages => StrDataSimilarImages::Path as usize,
-            Self::DuplicateFiles => StrDataDuplicateFiles::Path as usize,
-            Self::BigFiles => StrDataBigFiles::Path as usize,
-            Self::TemporaryFiles => StrDataTemporaryFiles::Path as usize,
-            Self::SimilarVideos => StrDataSimilarVideos::Path as usize,
-            Self::SimilarMusic => StrDataSimilarMusic::Path as usize,
-            Self::InvalidSymlinks => StrDataInvalidSymlinks::SymlinkFolder as usize,
-            Self::BrokenFiles => StrDataBrokenFiles::Path as usize,
-            Self::BadExtensions => StrDataBadExtensions::Path as usize,
-            Self::BadNames => StrDataBadNames::Path as usize,
-            Self::ExifRemover => StrDataExifRemover::Path as usize,
-            Self::VideoOptimizer => StrDataVideoOptimizer::Path as usize,
-            Self::Settings | Self::About => panic!("Button should be disabled"),
-        }
-    }
-
-    pub(crate) fn get_str_name_idx(self) -> usize {
-        match self {
-            Self::EmptyFolders => StrDataEmptyFolders::Name as usize,
-            Self::EmptyFiles => StrDataEmptyFiles::Name as usize,
-            Self::SimilarImages => StrDataSimilarImages::Name as usize,
-            Self::DuplicateFiles => StrDataDuplicateFiles::Name as usize,
-            Self::BigFiles => StrDataBigFiles::Name as usize,
-            Self::TemporaryFiles => StrDataTemporaryFiles::Name as usize,
-            Self::SimilarVideos => StrDataSimilarVideos::Name as usize,
-            Self::SimilarMusic => StrDataSimilarMusic::Name as usize,
-            Self::InvalidSymlinks => StrDataInvalidSymlinks::SymlinkName as usize,
-            Self::BrokenFiles => StrDataBrokenFiles::Name as usize,
-            Self::BadExtensions => StrDataBadExtensions::Name as usize,
-            Self::BadNames => StrDataBadNames::Name as usize,
-            Self::ExifRemover => StrDataExifRemover::Name as usize,
-            Self::VideoOptimizer => StrDataVideoOptimizer::Name as usize,
-            Self::Settings | Self::About => panic!("Button should be disabled"),
-        }
-    }
 
     pub(crate) fn get_str_proper_extension(self) -> usize {
         match self {
@@ -498,46 +458,6 @@ impl ActiveTab {
             Self::Settings | Self::About => panic!("Button should be disabled"),
             _ => panic!("Unable to get proper extension from this tab"),
         }
-    }
-    pub(crate) fn get_int_modification_date_idx(self) -> usize {
-        match self {
-            Self::EmptyFiles => IntDataEmptyFiles::ModificationDatePart1 as usize,
-            Self::EmptyFolders => IntDataEmptyFolders::ModificationDatePart1 as usize,
-            Self::SimilarImages => IntDataSimilarImages::ModificationDatePart1 as usize,
-            Self::DuplicateFiles => IntDataDuplicateFiles::ModificationDatePart1 as usize,
-            Self::BigFiles => IntDataBigFiles::ModificationDatePart1 as usize,
-            Self::TemporaryFiles => IntDataTemporaryFiles::ModificationDatePart1 as usize,
-            Self::SimilarVideos => IntDataSimilarVideos::ModificationDatePart1 as usize,
-            Self::SimilarMusic => IntDataSimilarMusic::ModificationDatePart1 as usize,
-            Self::InvalidSymlinks => IntDataInvalidSymlinks::ModificationDatePart1 as usize,
-            Self::BrokenFiles => IntDataBrokenFiles::ModificationDatePart1 as usize,
-            Self::BadExtensions => IntDataBadExtensions::ModificationDatePart1 as usize,
-            Self::BadNames => IntDataBadNames::ModificationDatePart1 as usize,
-            Self::ExifRemover => IntDataExifRemover::ModificationDatePart1 as usize,
-            Self::VideoOptimizer => IntDataVideoOptimizer::ModificationDatePart1 as usize,
-            Self::Settings | Self::About => panic!("Button should be disabled"),
-        }
-    }
-    pub(crate) fn get_int_size_opt_idx(self) -> Option<usize> {
-        let res = match self {
-            Self::EmptyFiles => IntDataEmptyFiles::SizePart1 as usize,
-            Self::SimilarImages => IntDataSimilarImages::SizePart1 as usize,
-            Self::DuplicateFiles => IntDataDuplicateFiles::SizePart1 as usize,
-            Self::BigFiles => IntDataBigFiles::SizePart1 as usize,
-            Self::SimilarVideos => IntDataSimilarVideos::SizePart1 as usize,
-            Self::SimilarMusic => IntDataSimilarMusic::SizePart1 as usize,
-            Self::BrokenFiles => IntDataBrokenFiles::SizePart1 as usize,
-            Self::TemporaryFiles => IntDataTemporaryFiles::SizePart1 as usize,
-            Self::BadExtensions => IntDataBadExtensions::SizePart1 as usize,
-            Self::BadNames => IntDataBadNames::SizePart1 as usize,
-            Self::ExifRemover => IntDataExifRemover::SizePart1 as usize,
-            Self::VideoOptimizer => IntDataVideoOptimizer::SizePart1 as usize,
-            Self::Settings | Self::About | Self::EmptyFolders | Self::InvalidSymlinks => return None,
-        };
-        Some(res)
-    }
-    pub(crate) fn get_int_size_idx(self) -> usize {
-        self.get_int_size_opt_idx().unwrap_or_else(|| panic!("Unable to get size index for tab: {self:?}"))
     }
     pub(crate) fn get_int_width_idx(self) -> usize {
         match self {
@@ -596,61 +516,6 @@ impl ActiveTab {
         }
     }
 
-    pub(crate) fn get_is_header_mode(self) -> bool {
-        match self {
-            Self::EmptyFolders
-            | Self::EmptyFiles
-            | Self::BrokenFiles
-            | Self::BigFiles
-            | Self::TemporaryFiles
-            | Self::InvalidSymlinks
-            | Self::BadExtensions
-            | Self::BadNames
-            | Self::ExifRemover
-            | Self::VideoOptimizer => false,
-            Self::SimilarImages | Self::DuplicateFiles | Self::SimilarVideos | Self::SimilarMusic => true,
-            Self::Settings | Self::About => panic!("Button should be disabled"),
-        }
-    }
-    pub(crate) fn get_tool_model(self, app: &MainWindow) -> ModelRc<SingleMainListModel> {
-        match self {
-            Self::EmptyFolders => app.get_empty_folder_model(),
-            Self::SimilarImages => app.get_similar_images_model(),
-            Self::EmptyFiles => app.get_empty_files_model(),
-            Self::DuplicateFiles => app.get_duplicate_files_model(),
-            Self::BigFiles => app.get_big_files_model(),
-            Self::TemporaryFiles => app.get_temporary_files_model(),
-            Self::SimilarVideos => app.get_similar_videos_model(),
-            Self::SimilarMusic => app.get_similar_music_model(),
-            Self::InvalidSymlinks => app.get_invalid_symlinks_model(),
-            Self::BrokenFiles => app.get_broken_files_model(),
-            Self::BadExtensions => app.get_bad_extensions_model(),
-            Self::BadNames => app.get_bad_names_model(),
-            Self::ExifRemover => app.get_exif_remover_model(),
-            Self::VideoOptimizer => app.get_video_optimizer_model(),
-            Self::Settings | Self::About => panic!("Button should be disabled"),
-        }
-    }
-
-    pub(crate) fn set_tool_model(self, app: &MainWindow, model: ModelRc<SingleMainListModel>) {
-        match self {
-            Self::EmptyFolders => app.set_empty_folder_model(model),
-            Self::SimilarImages => app.set_similar_images_model(model),
-            Self::EmptyFiles => app.set_empty_files_model(model),
-            Self::DuplicateFiles => app.set_duplicate_files_model(model),
-            Self::BigFiles => app.set_big_files_model(model),
-            Self::TemporaryFiles => app.set_temporary_files_model(model),
-            Self::SimilarVideos => app.set_similar_videos_model(model),
-            Self::SimilarMusic => app.set_similar_music_model(model),
-            Self::InvalidSymlinks => app.set_invalid_symlinks_model(model),
-            Self::BrokenFiles => app.set_broken_files_model(model),
-            Self::BadExtensions => app.set_bad_extensions_model(model),
-            Self::BadNames => app.set_bad_names_model(model),
-            Self::ExifRemover => app.set_exif_remover_model(model),
-            Self::VideoOptimizer => app.set_video_optimizer_model(model),
-            Self::Settings | Self::About => panic!("Button should be disabled"),
-        }
-    }
 }
 
 pub(crate) fn create_included_paths_model_from_pathbuf(items: &[PathBuf], referenced: &[PathBuf]) -> ModelRc<IncludedPathsModel> {

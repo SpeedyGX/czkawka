@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 use czkawka_core::common::tool_data::CommonData;
 use czkawka_core::common::traits::PrintResults;
@@ -56,14 +56,16 @@ impl SharedModels {
         }
     }
 
-    pub fn new_shared() -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self::new()))
+    pub fn new_shared() -> Arc<RwLock<Self>> {
+        Arc::new(RwLock::new(Self::new()))
     }
 
     pub(crate) fn save_results(&self, active_tab: ActiveTab, chosen_dir: &str) -> Result<(), String> {
         let cd = chosen_dir;
         let result = match active_tab {
-            ActiveTab::DuplicateFiles => self.shared_duplication_state.as_ref().map(|x| x.save_all_in_one(cd, "results_duplicates")),
+            ActiveTab::DuplicateFiles => {
+                self.shared_duplication_state.as_ref().map(|x| x.save_all_in_one(cd, "results_duplicates"))
+            }
             ActiveTab::EmptyFolders => self.shared_empty_folders_state.as_ref().map(|x| x.save_all_in_one(cd, "results_empty_directories")),
             ActiveTab::EmptyFiles => self.shared_empty_files_state.as_ref().map(|x| x.save_all_in_one(cd, "results_empty_files")),
             ActiveTab::TemporaryFiles => self.shared_temporary_files_state.as_ref().map(|x| x.save_all_in_one(cd, "results_temporary_files")),

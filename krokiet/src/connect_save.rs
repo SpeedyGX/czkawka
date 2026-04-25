@@ -1,13 +1,14 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use rfd::FileDialog;
 use slint::ComponentHandle;
 
+use std::sync::RwLock;
 use crate::connect_rfd::{hide_file_dialog_overlay, show_file_dialog_overlay};
 use crate::shared_models::SharedModels;
 use crate::{Callabler, GuiState, MainWindow};
 
-pub(crate) fn connect_save(app: &MainWindow, shared_models: Arc<Mutex<SharedModels>>) {
+pub(crate) fn connect_save(app: &MainWindow, shared_models: Arc<RwLock<SharedModels>>) {
     let a = app.as_weak();
     app.global::<Callabler>().on_save_results(move || {
         let app = a.upgrade().expect("Failed to upgrade app :(");
@@ -25,7 +26,7 @@ pub(crate) fn connect_save(app: &MainWindow, shared_models: Arc<Mutex<SharedMode
             if let Some(folder) = folder {
                 let folder_str = folder.to_string_lossy().to_string();
                 weak.upgrade_in_event_loop(move |app| {
-                    if let Err(e) = shared_models.lock().unwrap().save_results(active_tab, &folder_str) {
+                    if let Err(e) = shared_models.read().expect("RwLock poisoned").save_results(active_tab, &folder_str) {
                         app.global::<GuiState>().set_info_text(e.into());
                     }
                 })

@@ -80,7 +80,7 @@ struct RawCompareItem {
     flat_idx: i32,
 }
 
-pub(crate) fn connect_compare(app: &MainWindow, _shared_models: Arc<std::sync::Mutex<SharedModels>>) {
+pub(crate) fn connect_compare(app: &MainWindow, _shared_models: Arc<std::sync::RwLock<SharedModels>>) {
     connect_compare_open(app);
     connect_compare_set_left(app);
     connect_compare_set_right(app);
