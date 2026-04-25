@@ -43,7 +43,7 @@ export component SelectableTableView inherits Rectangle {
             padding: 4px;
             spacing: 4px;
 
-            LineEdit {
+            input_field := LineEdit {
                 horizontal-stretch: 1.0;
                 text: GuiState.filter_text;
                 edited => {
@@ -60,13 +60,26 @@ export component SelectableTableView inherits Rectangle {
                 }
             }
 
-            Button {
-                text: "✕";
-                width: 24px;
-                clicked => {
-                    GuiState.filter_text = "";
-                    GuiState.filter_column_idx = 0;
-                    Callabler.filter_results("", 0);
+            // Clear button with centered ✕ (Button widget has alignment issues)
+            Rectangle {
+                width: 28px;
+                height: 28px;
+                border-radius: 4px;
+                background: clear_touch.has-hover ? ColorPalette.tab_hovered_color : transparent;
+                clear_touch := TouchArea {
+                    clicked => {
+                        GuiState.filter_text = "";
+                        GuiState.filter_column_idx = 0;
+                        Callabler.filter_results("", 0);
+                    }
+                }
+                Text {
+                    text: "✕";
+                    font-size: FontSizes.small;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    width: parent.width;
+                    height: parent.height;
                 }
             }
         }
