@@ -22,7 +22,6 @@ krokiet/target
 perf.data
 perf.data.old
 krokiet/ui/test.slint
-*.html
 misc/*/*.lock
 misc/*/target/
 misc/*/.idea
