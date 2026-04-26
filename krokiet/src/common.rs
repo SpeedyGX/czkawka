@@ -138,6 +138,7 @@ pub const MAX_STR_DATA_SIMILAR_IMAGES: usize = StrDataSimilarImages::Modificatio
 #[repr(u8)]
 #[derive(Debug, Eq, PartialEq, TryFromPrimitive)]
 pub enum IntDataSimilarVideos {
+    SimilarityValue,
     ModificationDatePart1,
     ModificationDatePart2,
     SizePart1,
@@ -153,6 +154,7 @@ pub const MAX_INT_DATA_SIMILAR_VIDEOS: usize = IntDataSimilarVideos::Dimensions 
 #[repr(u8)]
 #[derive(Debug, Eq, PartialEq, TryFromPrimitive)]
 pub enum StrDataSimilarVideos {
+    Similarity,
     Size,
     Name,
     Path,
@@ -387,7 +389,7 @@ impl ActiveTab {
                 }
             },
             Self::SimilarVideos => match StrDataSimilarVideos::try_from(str_idx as u8).unwrap_or_else(|_| panic!("Invalid str idx {str_idx} for SimilarVideos")) {
-                StrDataSimilarVideos::Name | StrDataSimilarVideos::Path | StrDataSimilarVideos::Codec | StrDataSimilarVideos::PreviewPath => SortIdx::StrIdx(str_idx),
+                StrDataSimilarVideos::Similarity | StrDataSimilarVideos::Name | StrDataSimilarVideos::Path | StrDataSimilarVideos::Codec | StrDataSimilarVideos::PreviewPath => SortIdx::StrIdx(str_idx),
                 StrDataSimilarVideos::ModificationDate => {
                     SortIdx::IntIdxPair(IntDataSimilarVideos::ModificationDatePart1 as i32, IntDataSimilarVideos::ModificationDatePart2 as i32)
                 }

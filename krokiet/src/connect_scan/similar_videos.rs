@@ -125,7 +125,11 @@ fn prepare_data_model_similar_videos(fe: VideosEntry) -> (ModelRc<SharedString>,
     };
     let preview_path = fe.thumbnail_path.as_ref().map(|e| e.to_string_lossy().to_string()).unwrap_or_default();
     let duration = format_duration_opt(fe.duration);
+    let max_bits: u32 = 144; // Video perceptual hash is 144 bits
+    let pct = if max_bits > 0 { ((max_bits - fe.difference) * 100) / max_bits } else { 100 };
+    let similarity_str = format!("{} %", pct);
     let data_model_str_arr: [SharedString; MAX_STR_DATA_SIMILAR_VIDEOS] = [
+        similarity_str.into(),
         format_size(fe.size, BINARY).into(),
         file.into(),
         directory.into(),
@@ -145,6 +149,7 @@ fn prepare_data_model_similar_videos(fe: VideosEntry) -> (ModelRc<SharedString>,
     let fps_i32 = fe.fps.map_or(0, |f| (f * 100.0) as i32);
     let dimension = fe.width.and_then(|w| fe.height.map(|h| w as i32 * h as i32)).unwrap_or_default();
     let data_model_int_arr: [i32; MAX_INT_DATA_SIMILAR_VIDEOS] = [
+        fe.difference as i32,
         modification_split.0,
         modification_split.1,
         size_split.0,

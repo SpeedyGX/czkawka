@@ -119,7 +119,11 @@ fn write_similar_images_results(
 fn prepare_data_model_similar_images(fe: ImagesEntry, hash_size: u8) -> (ModelRc<SharedString>, ModelRc<i32>) {
     let (directory, file) = split_path(fe.get_path());
     let data_model_str_arr: [SharedString; MAX_STR_DATA_SIMILAR_IMAGES] = [
-        get_string_from_similarity(fe.difference, hash_size).into(),
+        {
+            let max_bits = (hash_size as u32) * (hash_size as u32);
+            let pct = if max_bits > 0 { ((max_bits - fe.difference) * 100) / max_bits } else { 0 };
+            format!("{} ({} %)", get_string_from_similarity(fe.difference, hash_size), pct).into()
+        },
         format_size(fe.size, BINARY).into(),
         format!("{}x{}", fe.width, fe.height).into(),
         file.into(),
