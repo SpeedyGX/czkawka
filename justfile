@@ -227,6 +227,10 @@ android_build_aab:
 build-web:
     cargo build --release --bin czkawka_web
 
+# Build czkawka_web binary with LTO profile 
+build-web-lto:
+    cargo build --profile release-lto --bin czkawka_web
+
 # Build and run czkawka_web in development mode.
 run-web:
     cargo run --bin czkawka_web
