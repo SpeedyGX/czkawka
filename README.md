@@ -20,6 +20,7 @@
 - **Cache support** - second and further scans should be much faster than the first one
 - **Easy to run, easy to compile** - minimal runtime and build dependencies, portable version available
 - **CLI frontend** - for easy automation
+- **Web UI** - browser-based interface running as a standalone HTTP server, see [czkawka_web/README.md](czkawka_web/README.md)
 - **GUI frontend** - uses Slint or GTK 4 frameworks
 - **Core library** - allows to reuse functionality in other apps
 - **Android app** - experimental touch-friendly frontend for Android devices
@@ -60,6 +61,7 @@ Each tool uses different technologies, so you can find instructions for each of 
 - [Krokiet GUI (Slint frontend)](krokiet/README.md)</br>
 - [Czkawka GUI (GTK frontend)](czkawka_gui/README.md)</br>
 - [Czkawka CLI](czkawka_cli/README.md)</br>
+- [Czkawka Web UI](czkawka_web/README.md)</br>
 - [Czkawka Core](czkawka_core/README.md)</br>
 - [Cedinia](cedinia/README.md)</br>
 
@@ -130,7 +132,7 @@ console apps, then take a look at these:
 
 Czkawka exposes its common functionality through a crate called **`czkawka_core`**, which can be reused by other projects.
 
-It is written in Rust and is used by all Czkawka frontends (`czkawka_gui`, `czkawka_cli`, `krokiet`, `cedinia`).
+It is written in Rust and is used by all Czkawka frontends (`czkawka_gui`, `czkawka_cli`, `czkawka_web`, `krokiet`, `cedinia`).
 
 It is also used by external projects, such as:
 
@@ -199,7 +201,7 @@ The entire code in this repository is licensed under the [MIT](https://mit-licen
 
 All images and audio files are licensed under the [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) license.
 
-The Czkawka GTK GUI and CLI applications are licensed under the [MIT](https://mit-license.org/) license, while the Krokiet and Cedinia(due Slint license requirements) are licensed under the [GPL-3.0-only](https://www.gnu.org/licenses/gpl-3.0.en.html) license.
+The Czkawka GTK GUI, CLI and Web UI applications are licensed under the [MIT](https://mit-license.org/) license, while the Krokiet and Cedinia (due Slint license requirements) are licensed under the [GPL-3.0-only](https://www.gnu.org/licenses/gpl-3.0.en.html) license.
 
 ## Donations
 
