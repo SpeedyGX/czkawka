@@ -11,6 +11,30 @@
 
 **Cedinia** - experimental Android touch friendly GUI frontend for Czkawka Core, built with Slint.
 
+## Differences from the original project
+
+This repository is a fork of the original [czkawka](https://github.com/qarmin/czkawka) project by Rafał Mikrut (qarmin).
+Below are the key differences and additions introduced in this fork.
+
+### New Frontend
+
+- **czkawka_web** — A lightweight web-based UI that runs as a standalone HTTP server (axum + Tokio). Features a REST API, WebSocket progress streaming, an embedded vanilla JS frontend, and Docker support. All static files are embedded at compile time via `rust-embed` — no external files needed at runtime. See [czkawka_web/README.md](czkawka_web/README.md).
+
+### Krokiet Enhancements
+
+These are improvements to the existing [Krokiet](https://github.com/qarmin/czkawka) Slint-based desktop GUI, contributed on top of the original project:
+
+- **Resizable preview sidepanel** — Togglable preview panel with a close button, supporting images and video thumbnails. Displays detailed file metadata: name, path, size, modification date, image dimensions/format, video codec/duration/bitrate/fps/dimensions, and audio tags (title, artist, year, bitrate, length, genre). Can be resized and hidden at any time.
+- **Hardlink source selection** — Context-menu action to mark any file in a duplicate group as the hardlink source (`Set as source`), with a dedicated source column indicator. Toggling off restores the default behaviour.
+- **Filter by name or path** — Real-time text filtering of scan results with cached unfiltered models for instant restoration.
+- **Similarity percentage column** — Displays the similarity percentage as a dedicated column in both Similar Images and Similar Videos result tables, with sort support.
+
+### Other Improvements
+
+- **Docker support** — Multi-stage `Dockerfile` in `czkawka_web/` producing a minimal image for the web UI.
+- **`just build-web-lto`** — Build target for producing a release binary of the web UI with LTO.
+- **`plans/` directory** — Design documents and planning notes for new features (e.g. [czkawka_web_server.md](plans/czkawka_web_server.md)).
+
 ## Features
 
 - **Written in memory-safe Rust** - almost 100% unsafe code free
