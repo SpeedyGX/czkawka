@@ -249,10 +249,10 @@ docker-run-web:
 
 ##################### BUILD #####################
 
-build-krokiet-lto
+build-krokiet-lto:
     cargo build --profile release-lto --bin krokiet --features "heif,libraw,libavif,winit_skia_opengl"
 
-build-krokiet
+build-krokiet:
     cargo build --release --bin krokiet --features "heif,libraw,libavif,winit_skia_opengl"
 
 ##################### BENCHMARKS #####################

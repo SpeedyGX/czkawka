@@ -124,6 +124,9 @@ pub(crate) fn connect_load_metadata_for_row(app: &MainWindow, _shared_models: Ar
                 if let Some(s) = val_strs.get(StrDataSimilarImages::Size as usize) {
                     meta.file_size = s.clone();
                 }
+                if let Some(d) = val_strs.get(StrDataSimilarImages::Resolution as usize) {
+                    meta.image_dimensions = d.clone();
+                }
                 if let Some(m) = val_strs.get(StrDataSimilarImages::ModificationDate as usize) {
                     meta.file_modified = m.clone();
                 }
