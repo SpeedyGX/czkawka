@@ -37,6 +37,7 @@ component MetadataPanel inherits Rectangle {
 
     ScrollView {
         VerticalLayout {
+            alignment: start;
             padding: 6px;
             spacing: 2px;
 
@@ -67,72 +68,59 @@ component MetadataPanel inherits Rectangle {
             }
 
             // Image group
-            MetadataLabel {
-                visible: GuiState.preview_metadata.image_dimensions != "";
+            if GuiState.preview_metadata.image_dimensions != "" : MetadataLabel {
                 label_text: Translations.metadata_dimensions_text;
                 value_text: GuiState.preview_metadata.image_dimensions;
             }
-            MetadataLabel {
-                visible: GuiState.preview_metadata.image_format != "";
+            if GuiState.preview_metadata.image_format != "" : MetadataLabel {
                 label_text: Translations.metadata_format_text;
                 value_text: GuiState.preview_metadata.image_format;
             }
 
             // Video group
-            MetadataLabel {
-                visible: GuiState.preview_metadata.video_dimensions != "";
+            if GuiState.preview_metadata.video_dimensions != "" : MetadataLabel {
                 label_text: Translations.metadata_dimensions_text;
                 value_text: GuiState.preview_metadata.video_dimensions;
             }
-            MetadataLabel {
-                visible: GuiState.preview_metadata.video_codec != "";
+            if GuiState.preview_metadata.video_codec != "" : MetadataLabel {
                 label_text: Translations.metadata_codec_text;
                 value_text: GuiState.preview_metadata.video_codec;
             }
-            MetadataLabel {
-                visible: GuiState.preview_metadata.video_duration != "";
+            if GuiState.preview_metadata.video_duration != "" : MetadataLabel {
                 label_text: Translations.metadata_duration_text;
                 value_text: GuiState.preview_metadata.video_duration;
             }
-            MetadataLabel {
-                visible: GuiState.preview_metadata.video_bitrate != "";
+            if GuiState.preview_metadata.video_bitrate != "" : MetadataLabel {
                 label_text: Translations.metadata_bitrate_text;
                 value_text: GuiState.preview_metadata.video_bitrate;
             }
-            MetadataLabel {
-                visible: GuiState.preview_metadata.video_fps != "";
+            if GuiState.preview_metadata.video_fps != "" : MetadataLabel {
                 label_text: Translations.metadata_fps_text;
                 value_text: GuiState.preview_metadata.video_fps;
             }
 
             // Audio group
-            MetadataLabel {
-                visible: GuiState.preview_metadata.audio_title != "";
+            if GuiState.preview_metadata.audio_title != "" : MetadataLabel {
                 label_text: Translations.metadata_title_text;
                 value_text: GuiState.preview_metadata.audio_title;
             }
-            MetadataLabel {
-                visible: GuiState.preview_metadata.audio_artist != "";
+            if GuiState.preview_metadata.audio_artist != "" : MetadataLabel {
                 label_text: Translations.metadata_artist_text;
                 value_text: GuiState.preview_metadata.audio_artist;
             }
-            MetadataLabel {
-                visible: GuiState.preview_metadata.audio_year != "";
+            if GuiState.preview_metadata.audio_year != "" : MetadataLabel {
                 label_text: Translations.metadata_year_text;
                 value_text: GuiState.preview_metadata.audio_year;
             }
-            MetadataLabel {
-                visible: GuiState.preview_metadata.audio_genre != "";
+            if GuiState.preview_metadata.audio_genre != "" : MetadataLabel {
                 label_text: Translations.metadata_genre_text;
                 value_text: GuiState.preview_metadata.audio_genre;
             }
-            MetadataLabel {
-                visible: GuiState.preview_metadata.audio_bitrate != "";
+            if GuiState.preview_metadata.audio_bitrate != "" : MetadataLabel {
                 label_text: Translations.metadata_bitrate_text;
                 value_text: GuiState.preview_metadata.audio_bitrate;
             }
-            MetadataLabel {
-                visible: GuiState.preview_metadata.audio_length != "";
+            if GuiState.preview_metadata.audio_length != "" : MetadataLabel {
                 label_text: Translations.metadata_length_text;
                 value_text: GuiState.preview_metadata.audio_length;
             }
@@ -209,9 +197,9 @@ export component Preview inherits Rectangle {
             }
         }
 
-        // Metadata panel - takes remaining space
+        // Metadata panel - only takes as much height as needed for content
         MetadataPanel {
-            vertical-stretch: 1.0;
+            vertical-stretch: 0;
         }
     }
 }
