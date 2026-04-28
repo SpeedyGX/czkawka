@@ -53,15 +53,17 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, scan_id: String) 
                     }
                     Err(broadcast::error::RecvError::Closed) => {
                         let status = state.scan_manager.get_status(&scan_id).await;
-                        let msg = json!({
-                            "type": "completed",
-                            "status": match status {
-                                Some(ScanStatus::Completed) => "completed",
-                                Some(ScanStatus::Failed(_)) => "failed",
-                                Some(ScanStatus::Stopped) => "stopped",
-                                _ => "unknown",
-                            }
-                        });
+                        let (status_str, reason) = match status {
+                            Some(ScanStatus::Completed) => ("completed", None),
+                            Some(ScanStatus::Failed(reason)) => ("failed", Some(reason)),
+                            Some(ScanStatus::Stopped) => ("stopped", None),
+                            _ => ("unknown", None),
+                        };
+                        let msg = if let Some(reason) = reason {
+                            json!({"type": "completed", "status": status_str, "reason": reason})
+                        } else {
+                            json!({"type": "completed", "status": status_str})
+                        };
                         let _ = socket.send(Message::Text(msg.to_string().into())).await;
                         break;
                     }
@@ -70,18 +72,22 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, scan_id: String) 
             _ = interval.tick() => {
                 if let Some(status) = state.scan_manager.get_status(&scan_id).await {
                     match status {
-                        ScanStatus::Completed | ScanStatus::Failed(_) | ScanStatus::Stopped => {
-                            let status_str = match status {
-                                ScanStatus::Completed => "completed",
-                                ScanStatus::Failed(_) => "failed",
-                                ScanStatus::Stopped => "stopped",
-                                _ => "unknown",
-                            };
-                            let msg = json!({"type": "completed", "status": status_str});
+                        ScanStatus::Completed => {
+                            let msg = json!({"type": "completed", "status": "completed"});
                             let _ = socket.send(Message::Text(msg.to_string().into())).await;
                             break;
                         }
-                        _ => {}
+                        ScanStatus::Failed(reason) => {
+                            let msg = json!({"type": "completed", "status": "failed", "reason": reason});
+                            let _ = socket.send(Message::Text(msg.to_string().into())).await;
+                            break;
+                        }
+                        ScanStatus::Stopped => {
+                            let msg = json!({"type": "completed", "status": "stopped"});
+                            let _ = socket.send(Message::Text(msg.to_string().into())).await;
+                            break;
+                        }
+                        ScanStatus::Running => {}
                     }
                 }
             }

@@ -86,12 +86,6 @@ impl ScanManager {
         scans.get(id).map(|s| s.status.clone())
     }
 
-    /// Remove a scan.
-    pub(crate) async fn remove_scan(&self, id: &str) {
-        let mut scans = self.scans.lock().await;
-        scans.remove(id);
-    }
-
     /// Subscribe to progress updates for a scan.
     pub(crate) async fn subscribe_progress(&self, id: &str) -> Option<broadcast::Receiver<ProgressData>> {
         let scans = self.scans.lock().await;

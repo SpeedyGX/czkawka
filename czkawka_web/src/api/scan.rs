@@ -53,6 +53,23 @@ pub(crate) struct ScanResponse {
     pub(crate) status: String,
 }
 
+#[derive(Deserialize)]
+pub(crate) struct StopScanRequest {
+    pub(crate) scan_id: String,
+}
+
+/// POST /api/scan/stop
+pub(crate) async fn stop_scan_handler(
+    State(state): State<AppState>,
+    Json(req): Json<StopScanRequest>,
+) -> Json<ScanResponse> {
+    let stopped = state.scan_manager.stop_scan(&req.scan_id).await;
+    Json(ScanResponse {
+        scan_id: req.scan_id,
+        status: if stopped { "stopped".to_string() } else { "not_found".to_string() },
+    })
+}
+
 // ---------------------------------------------------------------------------
 // Duplicates  POST /api/scan/duplicates
 // ---------------------------------------------------------------------------
@@ -116,54 +133,73 @@ pub(crate) async fn scan_duplicates(
     std::thread::Builder::new()
         .stack_size(DEFAULT_THREAD_SIZE)
         .spawn(move || {
-            let params = DuplicateFinderParameters::new(
-                checking_method,
-                hash_type,
-                req.use_cache.unwrap_or(true),
-                req.min_file_size.unwrap_or(1024),
-                req.max_file_size.unwrap_or(u64::MAX),
-                req.case_sensitive_name.unwrap_or(false),
-            );
-            let mut tool = DuplicateFinder::new(params);
+            let manager_for_error = Arc::clone(&manager);
+            let id_for_error = id_clone.clone();
 
-            tool.set_included_paths(included.clone());
-            tool.set_excluded_paths(excluded.clone());
-            tool.set_recursive_search(req.recursive.unwrap_or(true));
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let params = DuplicateFinderParameters::new(
+                    checking_method,
+                    hash_type,
+                    req.use_cache.unwrap_or(true),
+                    req.min_file_size.unwrap_or(1024),
+                    req.max_file_size.unwrap_or(u64::MAX),
+                    req.case_sensitive_name.unwrap_or(false),
+                );
+                let mut tool = DuplicateFinder::new(params);
 
-            if let Some(ref excluded_items) = req.excluded_items {
-                tool.set_excluded_items(excluded_items.split(',').map(String::from).collect());
+                tool.set_included_paths(included.clone());
+                tool.set_excluded_paths(excluded.clone());
+                tool.set_recursive_search(req.recursive.unwrap_or(true));
+
+                if let Some(ref excluded_items) = req.excluded_items {
+                    tool.set_excluded_items(excluded_items.split(',').map(String::from).collect());
+                }
+                if let Some(ref allowed_ext) = req.allowed_extensions {
+                    tool.set_allowed_extensions(allowed_ext.split(',').map(String::from).collect());
+                }
+                if let Some(ref excluded_ext) = req.excluded_extensions {
+                    tool.set_excluded_extensions(excluded_ext.split(',').map(String::from).collect());
+                }
+
+                tool.set_use_cache(req.use_cache.unwrap_or(true));
+
+                if !stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                    tool.search(&stop_flag, Some(&tx));
+                }
+
+                let status = if tool.get_stopped_search() {
+                    crate::scan_manager::ScanStatus::Stopped
+                } else {
+                    crate::scan_manager::ScanStatus::Completed
+                };
+
+                // Serialise results to JSON – complete file data per group.
+                let result_json = if matches!(status, crate::scan_manager::ScanStatus::Completed) {
+                    Some(serialize_duplicate_results(&tool))
+                } else {
+                    None
+                };
+
+                // We are in a std thread with no tokio context, so create a fresh runtime.
+                let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+                rt.block_on(async move {
+                    manager.finish_scan(&id_clone, status, result_json).await;
+                });
+            }));
+
+            if let Err(panic) = result {
+                let msg = match panic.downcast_ref::<&str>() {
+                    Some(s) => s.to_string(),
+                    None => match panic.downcast_ref::<String>() {
+                        Some(s) => s.clone(),
+                        None => "Unknown error".to_string(),
+                    },
+                };
+                let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+                rt.block_on(async move {
+                    manager_for_error.finish_scan(&id_for_error, crate::scan_manager::ScanStatus::Failed(msg), None).await;
+                });
             }
-            if let Some(ref allowed_ext) = req.allowed_extensions {
-                tool.set_allowed_extensions(allowed_ext.split(',').map(String::from).collect());
-            }
-            if let Some(ref excluded_ext) = req.excluded_extensions {
-                tool.set_excluded_extensions(excluded_ext.split(',').map(String::from).collect());
-            }
-
-            tool.set_use_cache(req.use_cache.unwrap_or(true));
-
-            if !stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
-                tool.search(&stop_flag, Some(&tx));
-            }
-
-            let status = if tool.get_stopped_search() {
-                crate::scan_manager::ScanStatus::Stopped
-            } else {
-                crate::scan_manager::ScanStatus::Completed
-            };
-
-            // Serialise results to JSON – complete file data per group.
-            let result_json = if matches!(status, crate::scan_manager::ScanStatus::Completed) {
-                Some(serialize_duplicate_results(&tool))
-            } else {
-                None
-            };
-
-            // We are in a std thread with no tokio context, so create a fresh runtime.
-            let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
-            rt.block_on(async move {
-                manager.finish_scan(&id_clone, status, result_json).await;
-            });
         })
         .expect("Failed to spawn scan thread");
 
@@ -334,41 +370,60 @@ pub(crate) async fn scan_hardlink(
     std::thread::Builder::new()
         .stack_size(DEFAULT_THREAD_SIZE)
         .spawn(move || {
-            let params = DuplicateFinderParameters::new(
-                czkawka_core::common::model::CheckingMethod::Hash,
-                czkawka_core::common::model::HashType::Blake3,
-                true,            // use_cache
-                1024,            // min_file_size
-                u64::MAX,        // max_file_size
-                false,           // case_sensitive_name
-            );
-            let mut tool = DuplicateFinder::new(params);
+            let manager_for_error = Arc::clone(&manager);
+            let id_for_error = id_clone.clone();
 
-            tool.set_included_paths(included);
-            tool.set_recursive_search(true);
-            tool.set_dry_run(false);
-            tool.set_delete_method(DeleteMethod::HardLink);
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let params = DuplicateFinderParameters::new(
+                    czkawka_core::common::model::CheckingMethod::Hash,
+                    czkawka_core::common::model::HashType::Blake3,
+                    true,            // use_cache
+                    1024,            // min_file_size
+                    u64::MAX,        // max_file_size
+                    false,           // case_sensitive_name
+                );
+                let mut tool = DuplicateFinder::new(params);
 
-            if !stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
-                tool.search(&stop_flag, Some(&tx));
+                tool.set_included_paths(included);
+                tool.set_recursive_search(true);
+                tool.set_dry_run(false);
+                tool.set_delete_method(DeleteMethod::HardLink);
+
+                if !stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                    tool.search(&stop_flag, Some(&tx));
+                }
+
+                let status = if tool.get_stopped_search() {
+                    crate::scan_manager::ScanStatus::Stopped
+                } else {
+                    crate::scan_manager::ScanStatus::Completed
+                };
+
+                let result_json = if matches!(status, crate::scan_manager::ScanStatus::Completed) {
+                    Some(serialize_duplicate_results(&tool))
+                } else {
+                    None
+                };
+
+                let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+                rt.block_on(async move {
+                    manager.finish_scan(&id_clone, status, result_json).await;
+                });
+            }));
+
+            if let Err(panic) = result {
+                let msg = match panic.downcast_ref::<&str>() {
+                    Some(s) => s.to_string(),
+                    None => match panic.downcast_ref::<String>() {
+                        Some(s) => s.clone(),
+                        None => "Unknown error".to_string(),
+                    },
+                };
+                let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+                rt.block_on(async move {
+                    manager_for_error.finish_scan(&id_for_error, crate::scan_manager::ScanStatus::Failed(msg), None).await;
+                });
             }
-
-            let status = if tool.get_stopped_search() {
-                crate::scan_manager::ScanStatus::Stopped
-            } else {
-                crate::scan_manager::ScanStatus::Completed
-            };
-
-            let result_json = if matches!(status, crate::scan_manager::ScanStatus::Completed) {
-                Some(serialize_duplicate_results(&tool))
-            } else {
-                None
-            };
-
-            let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
-            rt.block_on(async move {
-                manager.finish_scan(&id_clone, status, result_json).await;
-            });
         })
         .expect("Failed to spawn scan thread");
 
@@ -439,42 +494,61 @@ pub(crate) async fn scan_similar_images(
     std::thread::Builder::new()
         .stack_size(DEFAULT_THREAD_SIZE)
         .spawn(move || {
-            let params = SimilarImagesParameters::new(
-                max_difference,
-                hash_size,
-                hash_alg,
-                image_filter,
-                false, // exclude_images_with_same_size
-                false, // exclude_images_with_same_resolution
-            );
-            let mut tool = SimilarImages::new(params);
+            let manager_for_error = Arc::clone(&manager);
+            let id_for_error = id_clone.clone();
 
-            tool.set_included_paths(included);
-            tool.set_excluded_paths(excluded);
-            tool.set_recursive_search(req.recursive.unwrap_or(true));
-            // Keep hard-linked files in results (set to true keeps them visible)
-            tool.set_hide_hard_links(true);
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let params = SimilarImagesParameters::new(
+                    max_difference,
+                    hash_size,
+                    hash_alg,
+                    image_filter,
+                    false, // exclude_images_with_same_size
+                    false, // exclude_images_with_same_resolution
+                );
+                let mut tool = SimilarImages::new(params);
 
-            if !stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
-                tool.search(&stop_flag, Some(&tx));
+                tool.set_included_paths(included);
+                tool.set_excluded_paths(excluded);
+                tool.set_recursive_search(req.recursive.unwrap_or(true));
+                // Keep hard-linked files in results (set to true keeps them visible)
+                tool.set_hide_hard_links(true);
+
+                if !stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                    tool.search(&stop_flag, Some(&tx));
+                }
+
+                let status = if tool.get_stopped_search() {
+                    crate::scan_manager::ScanStatus::Stopped
+                } else {
+                    crate::scan_manager::ScanStatus::Completed
+                };
+
+                let result_json = if matches!(status, crate::scan_manager::ScanStatus::Completed) {
+                    Some(serialize_similar_images_results(&tool))
+                } else {
+                    None
+                };
+
+                let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+                rt.block_on(async move {
+                    manager.finish_scan(&id_clone, status, result_json).await;
+                });
+            }));
+
+            if let Err(panic) = result {
+                let msg = match panic.downcast_ref::<&str>() {
+                    Some(s) => s.to_string(),
+                    None => match panic.downcast_ref::<String>() {
+                        Some(s) => s.clone(),
+                        None => "Unknown error".to_string(),
+                    },
+                };
+                let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+                rt.block_on(async move {
+                    manager_for_error.finish_scan(&id_for_error, crate::scan_manager::ScanStatus::Failed(msg), None).await;
+                });
             }
-
-            let status = if tool.get_stopped_search() {
-                crate::scan_manager::ScanStatus::Stopped
-            } else {
-                crate::scan_manager::ScanStatus::Completed
-            };
-
-            let result_json = if matches!(status, crate::scan_manager::ScanStatus::Completed) {
-                Some(serialize_similar_images_results(&tool))
-            } else {
-                None
-            };
-
-            let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
-            rt.block_on(async move {
-                manager.finish_scan(&id_clone, status, result_json).await;
-            });
         })
         .expect("Failed to spawn scan thread");
 
@@ -578,46 +652,65 @@ pub(crate) async fn scan_similar_videos(
     std::thread::Builder::new()
         .stack_size(DEFAULT_THREAD_SIZE)
         .spawn(move || {
-            let params = SimilarVideosParameters::new(
-                tolerance,
-                false, // exclude_videos_with_same_size
-                false, // exclude_videos_with_same_resolution
-                skip_forward,
-                hash_duration,
-                crop_detect,
-                generate_thumbnails,
-                10,    // thumbnail_video_percentage_from_start
-                false, // generate_thumbnail_grid_instead_of_single
-                4,     // thumbnail_grid_tiles_per_side
-            );
-            let mut tool = SimilarVideos::new(params);
+            let manager_for_error = Arc::clone(&manager);
+            let id_for_error = id_clone.clone();
 
-            tool.set_included_paths(included);
-            tool.set_excluded_paths(excluded);
-            tool.set_recursive_search(req.recursive.unwrap_or(true));
-            // Keep hard-linked files in results (set to true keeps them visible)
-            tool.set_hide_hard_links(true);
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let params = SimilarVideosParameters::new(
+                    tolerance,
+                    false, // exclude_videos_with_same_size
+                    false, // exclude_videos_with_same_resolution
+                    skip_forward,
+                    hash_duration,
+                    crop_detect,
+                    generate_thumbnails,
+                    10,    // thumbnail_video_percentage_from_start
+                    false, // generate_thumbnail_grid_instead_of_single
+                    4,     // thumbnail_grid_tiles_per_side
+                );
+                let mut tool = SimilarVideos::new(params);
 
-            if !stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
-                tool.search(&stop_flag, Some(&tx));
+                tool.set_included_paths(included);
+                tool.set_excluded_paths(excluded);
+                tool.set_recursive_search(req.recursive.unwrap_or(true));
+                // Keep hard-linked files in results (set to true keeps them visible)
+                tool.set_hide_hard_links(true);
+
+                if !stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                    tool.search(&stop_flag, Some(&tx));
+                }
+
+                let status = if tool.get_stopped_search() {
+                    crate::scan_manager::ScanStatus::Stopped
+                } else {
+                    crate::scan_manager::ScanStatus::Completed
+                };
+
+                let result_json = if matches!(status, crate::scan_manager::ScanStatus::Completed) {
+                    Some(serialize_similar_videos_results(&tool))
+                } else {
+                    None
+                };
+
+                let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+                rt.block_on(async move {
+                    manager.finish_scan(&id_clone, status, result_json).await;
+                });
+            }));
+
+            if let Err(panic) = result {
+                let msg = match panic.downcast_ref::<&str>() {
+                    Some(s) => s.to_string(),
+                    None => match panic.downcast_ref::<String>() {
+                        Some(s) => s.clone(),
+                        None => "Unknown error".to_string(),
+                    },
+                };
+                let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+                rt.block_on(async move {
+                    manager_for_error.finish_scan(&id_for_error, crate::scan_manager::ScanStatus::Failed(msg), None).await;
+                });
             }
-
-            let status = if tool.get_stopped_search() {
-                crate::scan_manager::ScanStatus::Stopped
-            } else {
-                crate::scan_manager::ScanStatus::Completed
-            };
-
-            let result_json = if matches!(status, crate::scan_manager::ScanStatus::Completed) {
-                Some(serialize_similar_videos_results(&tool))
-            } else {
-                None
-            };
-
-            let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
-            rt.block_on(async move {
-                manager.finish_scan(&id_clone, status, result_json).await;
-            });
         })
         .expect("Failed to spawn scan thread");
 

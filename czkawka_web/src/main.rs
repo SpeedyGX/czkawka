@@ -35,6 +35,7 @@ async fn main() {
         .route("/api/scan/hardlink", post(api::scan::scan_hardlink))
         .route("/api/scan/similar-images", post(api::scan::scan_similar_images))
         .route("/api/scan/similar-videos", post(api::scan::scan_similar_videos))
+        .route("/api/scan/stop", post(api::scan::stop_scan_handler))
         // Preview
         .route("/api/preview/image", get(api::preview::image_preview))
         .route("/api/preview/video", get(api::preview::video_preview))
