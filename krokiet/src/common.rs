@@ -13,25 +13,25 @@ use crate::{ActiveTab, ExcludedPathsModel, IncludedPathsModel, MainWindow, Setti
 #[repr(u8)]
 #[derive(Debug, Eq, PartialEq, TryFromPrimitive)]
 pub enum IntDataDuplicateFiles {
+    InodePart1,
+    InodePart2,
     ModificationDatePart1,
     ModificationDatePart2,
     SizePart1,
     SizePart2,
-    InodePart1,
-    InodePart2,
 }
-pub const MAX_INT_DATA_DUPLICATE_FILES: usize = IntDataDuplicateFiles::InodePart2 as usize + 1;
+pub const MAX_INT_DATA_DUPLICATE_FILES: usize = IntDataDuplicateFiles::SizePart2 as usize + 1;
 
 #[repr(u8)]
 #[derive(Debug, Eq, PartialEq, TryFromPrimitive)]
 pub enum StrDataDuplicateFiles {
+    Inode,
     Size,
     Name,
     Path,
     ModificationDate,
-    Inode,
 }
-pub const MAX_STR_DATA_DUPLICATE_FILES: usize = StrDataDuplicateFiles::Inode as usize + 1;
+pub const MAX_STR_DATA_DUPLICATE_FILES: usize = StrDataDuplicateFiles::ModificationDate as usize + 1;
 
 // Empty Folders
 #[repr(u8)]
@@ -114,6 +114,8 @@ pub const MAX_STR_DATA_TEMPORARY_FILES: usize = StrDataTemporaryFiles::Modificat
 #[repr(u8)]
 #[derive(Debug, Eq, PartialEq, TryFromPrimitive)]
 pub enum IntDataSimilarImages {
+    InodePart1,
+    InodePart2,
     ModificationDatePart1,
     ModificationDatePart2,
     SizePart1,
@@ -122,28 +124,28 @@ pub enum IntDataSimilarImages {
     Height,
     PixelCount,
     SimilarityValue,
-    InodePart1,
-    InodePart2,
 }
-pub const MAX_INT_DATA_SIMILAR_IMAGES: usize = IntDataSimilarImages::InodePart2 as usize + 1;
+pub const MAX_INT_DATA_SIMILAR_IMAGES: usize = IntDataSimilarImages::SimilarityValue as usize + 1;
 
 #[repr(u8)]
 #[derive(Debug, Eq, PartialEq, TryFromPrimitive)]
 pub enum StrDataSimilarImages {
+    Inode,
     Similarity,
     Size,
     Resolution,
     Name,
     Path,
     ModificationDate,
-    Inode,
 }
-pub const MAX_STR_DATA_SIMILAR_IMAGES: usize = StrDataSimilarImages::Inode as usize + 1;
+pub const MAX_STR_DATA_SIMILAR_IMAGES: usize = StrDataSimilarImages::ModificationDate as usize + 1;
 
 // Similar Videos
 #[repr(u8)]
 #[derive(Debug, Eq, PartialEq, TryFromPrimitive)]
 pub enum IntDataSimilarVideos {
+    InodePart1,
+    InodePart2,
     SimilarityValue,
     ModificationDatePart1,
     ModificationDatePart2,
@@ -154,14 +156,13 @@ pub enum IntDataSimilarVideos {
     Duration,
     Fps,
     Dimensions,
-    InodePart1,
-    InodePart2,
 }
-pub const MAX_INT_DATA_SIMILAR_VIDEOS: usize = IntDataSimilarVideos::InodePart2 as usize + 1;
+pub const MAX_INT_DATA_SIMILAR_VIDEOS: usize = IntDataSimilarVideos::Dimensions as usize + 1;
 
 #[repr(u8)]
 #[derive(Debug, Eq, PartialEq, TryFromPrimitive)]
 pub enum StrDataSimilarVideos {
+    Inode,
     Similarity,
     Size,
     Name,
@@ -173,9 +174,8 @@ pub enum StrDataSimilarVideos {
     Codec,
     ModificationDate,
     PreviewPath,
-    Inode,
 }
-pub const MAX_STR_DATA_SIMILAR_VIDEOS: usize = StrDataSimilarVideos::Inode as usize + 1;
+pub const MAX_STR_DATA_SIMILAR_VIDEOS: usize = StrDataSimilarVideos::PreviewPath as usize + 1;
 
 // Similar Music
 #[repr(u8)]

@@ -160,6 +160,7 @@ fn prepare_data_model_similar_videos(fe: VideosEntry) -> (ModelRc<SharedString>,
     let pct = if max_bits > 0 { ((max_bits - fe.difference) * 100) / max_bits } else { 100 };
     let similarity_str = format!("{} %", pct);
     let data_model_str_arr: [SharedString; MAX_STR_DATA_SIMILAR_VIDEOS] = [
+        fe.inode.to_string().into(),
         similarity_str.into(),
         format_size(fe.size, BINARY).into(),
         file.into(),
@@ -171,7 +172,6 @@ fn prepare_data_model_similar_videos(fe: VideosEntry) -> (ModelRc<SharedString>,
         codec.into(),
         get_dt_timestamp_string(fe.get_modified_date()).into(),
         preview_path.into(),
-        fe.inode.to_string().into(),
     ];
     let data_model_str = VecModel::from_slice(&data_model_str_arr);
     let modification_split = split_u64_into_i32s(fe.get_modified_date());
@@ -182,6 +182,8 @@ fn prepare_data_model_similar_videos(fe: VideosEntry) -> (ModelRc<SharedString>,
     let fps_i32 = fe.fps.map_or(0, |f| (f * 100.0) as i32);
     let dimension = fe.width.and_then(|w| fe.height.map(|h| w as i32 * h as i32)).unwrap_or_default();
     let data_model_int_arr: [i32; MAX_INT_DATA_SIMILAR_VIDEOS] = [
+        inode_split.0,
+        inode_split.1,
         fe.difference as i32,
         modification_split.0,
         modification_split.1,
@@ -192,8 +194,6 @@ fn prepare_data_model_similar_videos(fe: VideosEntry) -> (ModelRc<SharedString>,
         duration_i32,
         fps_i32,
         dimension,
-        inode_split.0,
-        inode_split.1,
     ];
     let data_model_int = VecModel::from_slice(&data_model_int_arr);
     (data_model_str, data_model_int)

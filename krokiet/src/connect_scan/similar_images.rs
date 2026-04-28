@@ -150,6 +150,7 @@ fn write_similar_images_results(
 fn prepare_data_model_similar_images(fe: ImagesEntry, hash_size: u8) -> (ModelRc<SharedString>, ModelRc<i32>) {
     let (directory, file) = split_path(fe.get_path());
     let data_model_str_arr: [SharedString; MAX_STR_DATA_SIMILAR_IMAGES] = [
+        fe.inode.to_string().into(),
         {
             let max_bits = (hash_size as u32) * (hash_size as u32);
             let pct = if max_bits > 0 { ((max_bits - fe.difference) * 100) / max_bits } else { 0 };
@@ -160,13 +161,14 @@ fn prepare_data_model_similar_images(fe: ImagesEntry, hash_size: u8) -> (ModelRc
         file.into(),
         directory.into(),
         get_dt_timestamp_string(fe.get_modified_date()).into(),
-        fe.inode.to_string().into(),
     ];
     let data_model_str = VecModel::from_slice(&data_model_str_arr);
     let modification_split = split_u64_into_i32s(fe.get_modified_date());
     let size_split = split_u64_into_i32s(fe.size);
     let inode_split = split_u64_into_i32s(fe.inode);
     let data_model_int_arr: [i32; MAX_INT_DATA_SIMILAR_IMAGES] = [
+        inode_split.0,
+        inode_split.1,
         modification_split.0,
         modification_split.1,
         size_split.0,
@@ -175,8 +177,6 @@ fn prepare_data_model_similar_images(fe: ImagesEntry, hash_size: u8) -> (ModelRc
         fe.height as i32,
         (fe.width as u64 * fe.height as u64) as i32, // Limited to 2000MP, but using u64, because in cache it can exceed i32
         fe.difference as i32,
-        inode_split.0,
-        inode_split.1,
     ];
     let data_model_int = VecModel::from_slice(&data_model_int_arr);
     (data_model_str, data_model_int)

@@ -38,7 +38,13 @@ pub(crate) fn connect_show_preview(app: &MainWindow, shared_models: Arc<RwLock<S
             }
 
             if !check_if_can_display_image(&image_path) {
-                set_preview_visible(&gui_state, None);
+                // Not a displayable image (e.g., video file in Duplicates view).
+                // Show the preview panel so the MetadataPanel is visible, even without an
+                // image preview. The image itself was already loaded from a previous selection
+                // or is empty, which is fine – the metadata is the important part here.
+                gui_state.set_preview_image_path(image_path.clone());
+                gui_state.set_preview_visible(true);
+                load_file_metadata(&app, image_path.as_str());
                 return;
             }
 

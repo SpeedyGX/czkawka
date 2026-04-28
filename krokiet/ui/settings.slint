@@ -244,8 +244,8 @@ export global Settings {
     out property <length> mod_px: 125px;
     out property <length> size_px: 75px;
 
-    in-out property <[string]> duplicates_column_name: ["Selection", "Source", "Size", "File Name", "Path", "Modification Date", "Inode"];
-    in-out property <[length]> duplicates_column_size: [20px, 25px, size_px, name_px, path_px, mod_px, 100px];
+    in-out property <[string]> duplicates_column_name: ["Selection", "Source", "Inode", "Size", "File Name", "Path", "Modification Date"];
+    in-out property <[length]> duplicates_column_size: [20px, 25px, 100px, size_px, name_px, path_px, mod_px];
     in-out property <[string]> empty_folders_column_name: ["Selection", "Folder Name", "Path", "Modification Date"];
     in-out property <[length]> empty_folders_column_size: [20px, name_px, path_px, mod_px];
     in-out property <[string]> big_files_column_name: ["Selection", "Size", "File Name", "Path", "Modification Date"];
@@ -254,10 +254,10 @@ export global Settings {
     in-out property <[length]> empty_files_column_size: [20px, name_px, path_px, mod_px];
     in-out property <[string]> temporary_files_column_name: ["Selection", "File Name", "Path", "Modification Date"];
     in-out property <[length]> temporary_files_column_size: [20px, name_px, path_px, mod_px];
-    in-out property <[string]> similar_images_column_name: ["Selection", "Source", "Similarity", "Size", "Dimensions", "File Name", "Path", "Modification Date", "Inode"];
-    in-out property <[length]> similar_images_column_size: [20px, 25px, 80px, 80px, 80px, name_px, path_px, mod_px, 100px];
-    in-out property <[string]> similar_videos_column_name: ["Selection", "Source", "Similarity", "Size", "File Name", "Path", "Dimensions", "Duration", "Bitrate", "Fps", "Codec", "Modification Date", "Inode"];
-    in-out property <[length]> similar_videos_column_size: [20px, 25px, 80px, size_px, name_px, path_px, 80px, 30px, 30px, 80px, 80px, mod_px, 100px];
+    in-out property <[string]> similar_images_column_name: ["Selection", "Source", "Inode", "Similarity", "Size", "Dimensions", "File Name", "Path", "Modification Date"];
+    in-out property <[length]> similar_images_column_size: [20px, 25px, 100px, 80px, 80px, 80px, name_px, path_px, mod_px];
+    in-out property <[string]> similar_videos_column_name: ["Selection", "Source", "Inode", "Similarity", "Size", "File Name", "Path", "Dimensions", "Duration", "Bitrate", "Fps", "Codec", "Modification Date"];
+    in-out property <[length]> similar_videos_column_size: [20px, 25px, 100px, 80px, size_px, name_px, path_px, 80px, 30px, 30px, 80px, 80px, mod_px];
     in-out property <[string]> similar_music_column_name: ["Selection", "Source", "Size", "File Name", "Title", "Artist", "Year", "Bitrate", "Length", "Genre", "Path", "Modification Date"];
     in-out property <[length]> similar_music_column_size: [20px, 25px, size_px, name_px, 80px, 80px, 80px, 80px, 80px, 80px, path_px, mod_px];
     in-out property <[string]> invalid_symlink_column_name: ["Selection", "Symlink Name", "Symlink Folder", "Destination Path", "Modification Date"];
