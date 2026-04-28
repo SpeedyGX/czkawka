@@ -247,6 +247,14 @@ docker-web:
 docker-run-web:
     docker run -p 8095:8095 --rm czkawka_web
 
+##################### BUILD #####################
+
+build-krokiet-lto
+    cargo build --profile release-lto --bin krokiet --features "heif,libraw,libavif,winit_skia_opengl"
+
+build-krokiet
+    cargo build --release --bin krokiet --features "heif,libraw,libavif,winit_skia_opengl"
+
 ##################### BENCHMARKS #####################
 
 prepare_binaries:
