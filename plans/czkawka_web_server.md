@@ -1,35 +1,35 @@
-# Czkawka Web Server – plán implementace
+# Czkawka Web Server – Implementation Plan
 
-## Cíl
-Lehký HTTP server, který běží na pozadí a umožňuje ovládat Czkawka scanování přes REST API + Web UI v prohlížeči. Doplňuje stávající GUI, nenahrazuje ho.
+## Goal
+A lightweight HTTP server that runs in the background and allows controlling Czkawka scanning via REST API + Web UI in a browser. It complements the existing GUI, does not replace it.
 
 ---
 
-## Architektura
+## Architecture
 
 ```
 ┌──────────┐   HTTP REST    ┌───────────────────────────┐
-│ Prohlížeč│ ◄───────────►  │ czkawka_web server       │
+│ Browser  │ ◄───────────►  │ czkawka_web server       │
 │  (UI)    │                │ ┌───────────────────────┐ │
 │          │   WebSocket    │ │  axum HTTP server     │ │
-│          │ ◄───────────►  │ │  (běží na localhost)  │ │
+│          │ ◄───────────►  │ │  (runs on localhost)  │ │
 └──────────┘                │ ├───────────────────────┤ │
-                             │ │  ScanManager          │ │
-                             │ │  ┌─────────────────┐ │ │
-                             │ │  │ czkawka_core    │ │ │
-                             │ │  └─────────────────┘ │ │
-                             │ ├───────────────────────┤ │
-                             │ │  Static files         │ │
-                             │ │  (web UI embedded)    │ │
-                             │ └───────────────────────┘ │
-                             └───────────────────────────┘
+                            │ │  ScanManager          │ │
+                            │ │  ┌─────────────────┐ │ │
+                            │ │  │ czkawka_core    │ │ │
+                            │ │  └─────────────────┘ │ │
+                            │ ├───────────────────────┤ │
+                            │ │  Static files         │ │
+                            │ │  (web UI embedded)    │ │
+                            │ └───────────────────────┘ │
+                            └───────────────────────────┘
 ```
 
 ---
 
-## Cargo workspace – nový crate `czkawka_web`
+## Cargo workspace – new `czkawka_web` crate
 
-**Soubor:** `czkawka_web/Cargo.toml`
+**File:** `czkawka_web/Cargo.toml`
 ```toml
 [package]
 name = "czkawka_web"
@@ -47,7 +47,7 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 ```
 
-**Přidat do workspace** v `Cargo.toml`:
+**Add to workspace** in `Cargo.toml`:
 ```toml
 members = [
     ...
@@ -57,27 +57,27 @@ members = [
 
 ---
 
-## REST API endpointy
+## REST API endpoints
 
-### Scanování
+### Scanning
 
-| Metoda | Cesta | Popis |
-|--------|-------|-------|
-| `POST` | `/api/scan/duplicates` | Spustí scan duplicit |
-| `POST` | `/api/scan/similar-images` | Spustí scan podobných obrázků |
-| `POST` | `/api/scan/empty-folders` | Spustí scan prázdných složek |
-| `POST` | `/api/scan/empty-files` | Spustí scan prázdných souborů |
-| `POST` | `/api/scan/big-files` | Spustí scan velkých souborů |
-| `POST` | `/api/scan/temporary` | Spustí scan dočasných souborů |
-| `POST` | `/api/scan/similar-videos` | Spustí scan podobných videí |
-| `POST` | `/api/scan/similar-music` | Spustí scan podobné hudby |
-| `POST` | `/api/scan/invalid-symlinks` | Spustí scan neplatných symlinků |
-| `POST` | `/api/scan/broken-files` | Spustí scan poškozených souborů |
-| `POST` | `/api/scan/bad-extensions` | Spustí scan špatných přípon |
-| `POST` | `/api/scan/bad-names` | Spustí scan špatných názvů |
-| `POST` | `/api/scan/exif-remover` | Spustí scan EXIF dat |
-| `POST` | `/api/scan/video-optimizer` | Spustí scan videí k optimalizaci |
-| `GET` | `/api/scan/stop` | Zastaví běžící scan |
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/scan/duplicates` | Start duplicate scan |
+| `POST` | `/api/scan/similar-images` | Start similar images scan |
+| `POST` | `/api/scan/empty-folders` | Start empty folders scan |
+| `POST` | `/api/scan/empty-files` | Start empty files scan |
+| `POST` | `/api/scan/big-files` | Start big files scan |
+| `POST` | `/api/scan/temporary` | Start temporary files scan |
+| `POST` | `/api/scan/similar-videos` | Start similar videos scan |
+| `POST` | `/api/scan/similar-music` | Start similar music scan |
+| `POST` | `/api/scan/invalid-symlinks` | Start invalid symlinks scan |
+| `POST` | `/api/scan/broken-files` | Start broken files scan |
+| `POST` | `/api/scan/bad-extensions` | Start bad extensions scan |
+| `POST` | `/api/scan/bad-names` | Start bad names scan |
+| `POST` | `/api/scan/exif-remover` | Start EXIF data scan |
+| `POST` | `/api/scan/video-optimizer` | Start video optimizer scan |
+| `GET` | `/api/scan/stop` | Stop a running scan |
 
 **Request body (POST):**
 ```json
@@ -101,11 +101,11 @@ members = [
 
 ### Progress (WebSocket)
 
-| Endpoint | Popis |
-|----------|-------|
-| `WS` | `/api/scan/progress/{scan_id}` | Real-time progress události |
+| Endpoint | Description |
+|----------|-------------|
+| `WS` | `/api/scan/progress/{scan_id}` | Real-time progress events |
 
-**Zpráva z WebSocketu:**
+**WebSocket message:**
 ```json
 {
     "stage": "hashing_files",
@@ -117,43 +117,43 @@ members = [
 }
 ```
 
-### Výsledky
+### Results
 
-| Metoda | Cesta | Popis |
-|--------|-------|-------|
-| `GET` | `/api/results/{scan_id}` | Vrací výsledky scanu jako JSON |
-| `DELETE` | `/api/results/{scan_id}` | Smaže výsledky scanu |
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/results/{scan_id}` | Returns scan results as JSON |
+| `DELETE` | `/api/results/{scan_id}` | Deletes scan results |
 
-### Akce se soubory
+### File actions
 
-| Metoda | Cesta | Popis |
-|--------|-------|-------|
-| `POST` | `/api/files/delete` | Smaže vybrané soubory |
-| `POST` | `/api/files/move` | Přesune vybrané soubory |
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/files/delete` | Delete selected files |
+| `POST` | `/api/files/move` | Move selected files |
 
 ---
 
-## Struktura crate
+## Crate structure
 
 ```
 czkawka_web/
 ├── Cargo.toml
 └── src/
     ├── main.rs           ← axum server setup, routing
-    ├── scan_manager.rs   ← ScanManager – spouští a trackuje scany
-    │                       (drží Arc<Mutex<HashMap<scan_id, ScanState>>>)
+    ├── scan_manager.rs   ← ScanManager – starts and tracks scans
+    │                       (holds Arc<Mutex<HashMap<scan_id, ScanState>>>)
     ├── api/
     │   ├── mod.rs
-    │   ├── scan.rs       ← POST /api/scan/* handlery
+    │   ├── scan.rs       ← POST /api/scan/* handlers
     │   ├── results.rs    ← GET/DELETE /api/results/*
     │   └── actions.rs    ← POST /api/files/*
-    ├── ws.rs             ← WebSocket handler pro progress
+    ├── ws.rs             ← WebSocket handler for progress
     └── errors.rs         ← API error types
 ```
 
 ---
 
-## ScanManager – klíčová komponenta
+## ScanManager – key component
 
 ```rust
 struct ScanManager {
@@ -174,22 +174,22 @@ enum ScanStatus {
 }
 ```
 
-Každý scan běží v samostatném `tokio::task::spawn_blocking` vlákně (protože czkawka_core používá rayon a synchrónní API).
+Each scan runs in a separate `tokio::task::spawn_blocking` thread (because czkawka_core uses rayon and a synchronous API).
 
 ---
 
-## Web UI (minimalistické, embedded)
+## Web UI (minimalistic, embedded)
 
-Jedna HTML stránka + JS + CSS, embedded přímo do binárky přes `include_str!`:
+A single HTML page + JS + CSS, embedded directly into the binary via `include_str!`:
 
 ```
 czkawka_web/src/web/
-├── index.html     ← hlavní stránka
-├── app.js         ← vanilla JS (žádný framework – lehké)
-└── style.css      ← jednoduchý dark theme
+├── index.html     ← main page
+├── app.js         ← vanilla JS (no framework – lightweight)
+└── style.css      ← simple dark theme
 ```
 
-Nebo pro hezčí UI – Svelte (nejmenší framework):
+Or for a nicer UI – Svelte (smallest framework):
 ```
 czkawka_web/web-ui/
 ├── package.json
@@ -200,64 +200,64 @@ czkawka_web/web-ui/
 │   │   ├── ResultsTable.svelte
 │   │   └── ProgressBar.svelte
 │   └── main.js
-└── build.sh        ← npm build + zkopírovat do src/web/
+└── build.sh        ← npm build + copy to src/web/
 ```
 
-**UI obsahuje:**
-- Výběr nástroje (taby jako v krokiet)
-- Přidání/odebrání cest
-- Scan tlačítko + progress bar
-- Tabulka výsledků (řazení, filtrování)
-- Tlačítka Delete/Move
+**UI includes:**
+- Tool selection (tabs like in krokiet)
+- Add/remove paths
+- Scan button + progress bar
+- Results table (sorting, filtering)
+- Delete/Move buttons
 
 ---
 
-## Milníky implementace
+## Implementation milestones
 
-| # | Milník | Co je potřeba | Čas |
-|---|--------|---------------|-----|
+| # | Milestone | What's needed | Time |
+|---|-----------|--------------|------|
 | 1 | **HTTP server + ScanManager** | axum, tokio, scan_manager.rs | ~1h |
-| 2 | **API endpointy pro scan** | api/scan.rs – 1 endpoint na tool | ~1h |
+| 2 | **API endpoints for scanning** | api/scan.rs – 1 endpoint per tool | ~1h |
 | 3 | **WebSocket progress** | ws.rs + progress forwarding | ~30min |
-| 4 | **API pro výsledky + akce** | api/results.rs, api/actions.rs | ~30min |
-| 5 | **Web UI – základ** | index.html + app.js | ~1h |
-| 6 | **Web UI – tabulka výsledků** | zobrazení, řazení, filtrování | ~1h |
-| 7 | **Ostatní tools** | rozchození všech 14 toolů | ~1h |
-| 8 | **Testování + dolaďování** | | ~1h |
+| 4 | **API for results + actions** | api/results.rs, api/actions.rs | ~30min |
+| 5 | **Web UI – basics** | index.html + app.js | ~1h |
+| 6 | **Web UI – results table** | display, sorting, filtering | ~1h |
+| 7 | **Remaining tools** | getting all 14 tools working | ~1h |
+| 8 | **Testing + polish** | | ~1h |
 
-**Celkem:** ~7–8 hodin na funkční prototyp.
+**Total:** ~7–8 hours for a functional prototype.
 
 ---
 
-## Použití
+## Usage
 
 ```bash
-# Build + spuštění
+# Build + run
 cargo run --bin czkawka_web
 
-# Server běží na http://localhost:8080
-# Otevři prohlížeč a jdeš
+# Server runs on http://localhost:8080
+# Open browser and go
 ```
 
-Volitelné argumenty:
+Optional arguments:
 ```bash
 czkawka_web --port 3000 --host 0.0.0.0
 ```
 
 ---
 
-## Co se sdílí s existujícím kódem
+## What is shared with existing code
 
-| Komponenta | Sdílení |
+| Component | Sharing |
 |-----------|---------|
-| `czkawka_core` | ✅ Celý – beze změn |
-| `ProgressData`, `CurrentStage` | ✅ Přímo z czkawka_core |
-| `flc!` makro pro překlady | ✅ Lze použít |
-| Krokiet connect_* handlery | ❌ Jsou vázané na Slint – musíme napsat nové |
+| `czkawka_core` | ✅ Entire – unchanged |
+| `ProgressData`, `CurrentStage` | ✅ Directly from czkawka_core |
+| `flc!` macro for translations | ✅ Can be used |
+| Krokiet connect_* handlers | ❌ Tied to Slint – must write new ones |
 
 ---
 
-## Diagram toku dat
+## Data flow diagram
 
 ```mermaid
 sequenceDiagram
