@@ -1,9 +1,14 @@
 use std::fs::metadata;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, RwLock};
 
+use czkawka_core::common::config_cache_path::get_config_cache_path;
+use czkawka_core::common::consts::VIDEO_FILES_EXTENSIONS;
 use czkawka_core::common::image::{ImgResizeOptions, check_if_can_display_image, get_dynamic_image_from_path};
+use czkawka_core::common::video_utils::{generate_thumbnail, VIDEO_THUMBNAILS_SUBFOLDER};
 use czkawka_core::helpers::debug_timer::Timer;
+use czkawka_core::helpers::ffprobe::ffprobe;
 use czkawka_core::re_exported::FirFilterType;
 use image::{DynamicImage, Rgba, RgbaImage};
 use log::{debug, error};
@@ -39,9 +44,25 @@ pub(crate) fn connect_show_preview(app: &MainWindow, shared_models: Arc<RwLock<S
 
             if !check_if_can_display_image(&image_path) {
                 // Not a displayable image (e.g., video file in Duplicates view).
-                // Show the preview panel so the MetadataPanel is visible, even without an
-                // image preview. The image itself was already loaded from a previous selection
-                // or is empty, which is fine – the metadata is the important part here.
+                // Try to generate/retrieve a video thumbnail; fall back to metadata-only.
+                let path = Path::new(image_path.as_str());
+                let is_video = path
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .is_some_and(|ext| VIDEO_FILES_EXTENSIONS.contains(&ext));
+                if is_video {
+                    if let Some(thumbnail_path) = load_video_thumbnail(path, &settings) {
+                        if let Ok(image) = slint::Image::load_from_path(&thumbnail_path) {
+                            gui_state.set_preview_image(image);
+                        } else {
+                            gui_state.set_preview_image(slint::Image::default());
+                        }
+                    } else {
+                        gui_state.set_preview_image(slint::Image::default());
+                    }
+                } else {
+                    gui_state.set_preview_image(slint::Image::default());
+                }
                 gui_state.set_preview_image_path(image_path.clone());
                 gui_state.set_preview_visible(true);
                 load_file_metadata(&app, image_path.as_str());
@@ -105,6 +126,45 @@ pub(crate) fn connect_show_preview(app: &MainWindow, shared_models: Arc<RwLock<S
                 load_file_metadata(&app, image_path.as_str());
             }
         });
+}
+
+/// Try to generate or retrieve a cached video thumbnail.
+/// Returns the thumbnail path on success, or `None` if generation failed / ffmpeg is unavailable.
+fn load_video_thumbnail(video_path: &Path, _settings: &Settings) -> Option<PathBuf> {
+    // 1. File metadata
+    let fs_meta = std::fs::metadata(video_path).ok()?;
+    let size = fs_meta.len();
+    let modified_date = fs_meta
+        .modified()
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_secs();
+
+    // 2. Video duration via ffprobe
+    let duration = ffprobe(video_path).ok().and_then(|info| info.format.duration).and_then(|d| d.parse::<f64>().ok());
+
+    // 3. Cache directory for video thumbnails
+    let config_cache = get_config_cache_path()?;
+    let thumbnails_dir = config_cache.cache_folder.join(VIDEO_THUMBNAILS_SUBFOLDER);
+    let _ = std::fs::create_dir_all(&thumbnails_dir);
+
+    let stop_flag = Arc::new(AtomicBool::new(false));
+
+    // 4. Generate or retrieve cached thumbnail
+    generate_thumbnail(
+        &stop_flag,
+        video_path,
+        size,
+        modified_date,
+        duration,
+        &thumbnails_dir,
+        10,    // thumbnail_video_percentage_from_start
+        false, // generate_grid_instead_of_single
+        0,     // thumbnail_grid_tiles_per_side
+        true,  // generate_thumbnails
+    )
+    .ok()?
 }
 
 fn set_preview_visible(gui_state: &GuiState, preview: Option<&str>) {

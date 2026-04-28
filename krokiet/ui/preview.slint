@@ -40,81 +40,99 @@ component MetadataPanel inherits Rectangle {
             padding: 6px;
             spacing: 2px;
 
-            if GuiState.preview_metadata.file_name != "" : MetadataLabel {
+            MetadataLabel {
+                visible: GuiState.preview_metadata.file_name != "";
                 label_text: Translations.metadata_file_name_text;
                 value_text: GuiState.preview_metadata.file_name;
             }
-            if GuiState.preview_metadata.file_path != "" : MetadataLabel {
+            MetadataLabel {
+                visible: GuiState.preview_metadata.file_path != "";
                 label_text: Translations.metadata_file_path_text;
                 value_text: GuiState.preview_metadata.file_path;
             }
-            if GuiState.preview_metadata.file_size != "" : MetadataLabel {
+            MetadataLabel {
+                visible: GuiState.preview_metadata.file_size != "";
                 label_text: Translations.metadata_file_size_text;
                 value_text: GuiState.preview_metadata.file_size;
             }
-            if GuiState.preview_metadata.file_modified != "" : MetadataLabel {
+            MetadataLabel {
+                visible: GuiState.preview_metadata.file_modified != "";
                 label_text: Translations.metadata_modified_text;
                 value_text: GuiState.preview_metadata.file_modified;
             }
-            if GuiState.preview_metadata.file_inode != "" : MetadataLabel {
+            MetadataLabel {
+                visible: GuiState.preview_metadata.file_inode != "";
                 label_text: Translations.metadata_inode_text;
                 value_text: GuiState.preview_metadata.file_inode;
             }
 
             // Image group
-            if GuiState.preview_metadata.image_dimensions != "" : MetadataLabel {
+            MetadataLabel {
+                visible: GuiState.preview_metadata.image_dimensions != "";
                 label_text: Translations.metadata_dimensions_text;
                 value_text: GuiState.preview_metadata.image_dimensions;
             }
-            if GuiState.preview_metadata.image_format != "" : MetadataLabel {
+            MetadataLabel {
+                visible: GuiState.preview_metadata.image_format != "";
                 label_text: Translations.metadata_format_text;
                 value_text: GuiState.preview_metadata.image_format;
             }
 
             // Video group
-            if GuiState.preview_metadata.video_dimensions != "" : MetadataLabel {
+            MetadataLabel {
+                visible: GuiState.preview_metadata.video_dimensions != "";
                 label_text: Translations.metadata_dimensions_text;
                 value_text: GuiState.preview_metadata.video_dimensions;
             }
-            if GuiState.preview_metadata.video_codec != "" : MetadataLabel {
+            MetadataLabel {
+                visible: GuiState.preview_metadata.video_codec != "";
                 label_text: Translations.metadata_codec_text;
                 value_text: GuiState.preview_metadata.video_codec;
             }
-            if GuiState.preview_metadata.video_duration != "" : MetadataLabel {
+            MetadataLabel {
+                visible: GuiState.preview_metadata.video_duration != "";
                 label_text: Translations.metadata_duration_text;
                 value_text: GuiState.preview_metadata.video_duration;
             }
-            if GuiState.preview_metadata.video_bitrate != "" : MetadataLabel {
+            MetadataLabel {
+                visible: GuiState.preview_metadata.video_bitrate != "";
                 label_text: Translations.metadata_bitrate_text;
                 value_text: GuiState.preview_metadata.video_bitrate;
             }
-            if GuiState.preview_metadata.video_fps != "" : MetadataLabel {
+            MetadataLabel {
+                visible: GuiState.preview_metadata.video_fps != "";
                 label_text: Translations.metadata_fps_text;
                 value_text: GuiState.preview_metadata.video_fps;
             }
 
             // Audio group
-            if GuiState.preview_metadata.audio_title != "" : MetadataLabel {
+            MetadataLabel {
+                visible: GuiState.preview_metadata.audio_title != "";
                 label_text: Translations.metadata_title_text;
                 value_text: GuiState.preview_metadata.audio_title;
             }
-            if GuiState.preview_metadata.audio_artist != "" : MetadataLabel {
+            MetadataLabel {
+                visible: GuiState.preview_metadata.audio_artist != "";
                 label_text: Translations.metadata_artist_text;
                 value_text: GuiState.preview_metadata.audio_artist;
             }
-            if GuiState.preview_metadata.audio_year != "" : MetadataLabel {
+            MetadataLabel {
+                visible: GuiState.preview_metadata.audio_year != "";
                 label_text: Translations.metadata_year_text;
                 value_text: GuiState.preview_metadata.audio_year;
             }
-            if GuiState.preview_metadata.audio_genre != "" : MetadataLabel {
+            MetadataLabel {
+                visible: GuiState.preview_metadata.audio_genre != "";
                 label_text: Translations.metadata_genre_text;
                 value_text: GuiState.preview_metadata.audio_genre;
             }
-            if GuiState.preview_metadata.audio_bitrate != "" : MetadataLabel {
+            MetadataLabel {
+                visible: GuiState.preview_metadata.audio_bitrate != "";
                 label_text: Translations.metadata_bitrate_text;
                 value_text: GuiState.preview_metadata.audio_bitrate;
             }
-            if GuiState.preview_metadata.audio_length != "" : MetadataLabel {
+            MetadataLabel {
+                visible: GuiState.preview_metadata.audio_length != "";
                 label_text: Translations.metadata_length_text;
                 value_text: GuiState.preview_metadata.audio_length;
             }
@@ -171,6 +189,17 @@ export component Preview inherits Rectangle {
             max-height: parent.height * 0.7;
             vertical-stretch: 1.0;
             clip: true;
+
+            if GuiState.preview_image.width == 0 : Text {
+                width: parent.width;
+                height: parent.height;
+                text: "No preview available";
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                color: ColorPalette.hint_color;
+                font-size: FontSizes.small;
+                wrap: word-wrap;
+            }
 
             Image {
                 width: parent.width;
