@@ -10,6 +10,7 @@ pub struct SimplerSingleMainListModel {
     pub header_row: bool,
     pub selected_row: bool,
     pub is_source: bool,
+    pub is_hardlinked: bool,
     pub val_int: Vec<i32>,
     pub val_str: Vec<String>,
 }
@@ -41,6 +42,7 @@ impl From<&SingleMainListModel> for SimplerSingleMainListModel {
             header_row: model.header_row,
             selected_row: model.selected_row,
             is_source: model.is_source,
+            is_hardlinked: model.is_hardlinked,
             val_int: model.val_int.iter().collect(),
             val_str: model.val_str.iter().map(|e| e.to_string()).collect(),
         }
@@ -54,6 +56,7 @@ impl From<SimplerSingleMainListModel> for SingleMainListModel {
             header_row: val.header_row,
             selected_row: val.selected_row,
             is_source: val.is_source,
+            is_hardlinked: val.is_hardlinked,
             val_int: ModelRc::new(VecModel::from(val.val_int)),
             val_str: ModelRc::new(VecModel::from(val.val_str.into_iter().map(|s| s.into()).collect::<Vec<SharedString>>())),
         }

@@ -73,6 +73,9 @@ pub(crate) fn connect_load_metadata_for_row(app: &MainWindow, _shared_models: Ar
                 if let Some(m) = val_strs.get(StrDataSimilarVideos::ModificationDate as usize) {
                     meta.file_modified = m.clone();
                 }
+                if let Some(i) = val_strs.get(StrDataSimilarVideos::Inode as usize) {
+                    meta.file_inode = i.clone();
+                }
             }
             ActiveTab::SimilarMusic => {
                 if let Some(s) = val_strs.get(StrDataSimilarMusic::Size as usize) {
@@ -119,6 +122,9 @@ pub(crate) fn connect_load_metadata_for_row(app: &MainWindow, _shared_models: Ar
                 if let Some(m) = val_strs.get(StrDataDuplicateFiles::ModificationDate as usize) {
                     meta.file_modified = m.clone();
                 }
+                if let Some(i) = val_strs.get(StrDataDuplicateFiles::Inode as usize) {
+                    meta.file_inode = i.clone();
+                }
             }
             ActiveTab::SimilarImages => {
                 if let Some(s) = val_strs.get(StrDataSimilarImages::Size as usize) {
@@ -129,6 +135,9 @@ pub(crate) fn connect_load_metadata_for_row(app: &MainWindow, _shared_models: Ar
                 }
                 if let Some(m) = val_strs.get(StrDataSimilarImages::ModificationDate as usize) {
                     meta.file_modified = m.clone();
+                }
+                if let Some(i) = val_strs.get(StrDataSimilarImages::Inode as usize) {
+                    meta.file_inode = i.clone();
                 }
             }
             ActiveTab::VideoOptimizer => {

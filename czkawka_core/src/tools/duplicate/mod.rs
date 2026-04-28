@@ -42,6 +42,7 @@ pub struct DuplicateEntry {
     pub modified_date: u64,
     pub size: u64,
     pub hash: String,
+    pub inode: u64,
 }
 impl ResultEntry for DuplicateEntry {
     fn get_path(&self) -> &Path {
@@ -62,6 +63,7 @@ impl FileEntry {
             path: self.path,
             modified_date: self.modified_date,
             hash: String::new(),
+            inode: self.inode,
         }
     }
 }

@@ -54,6 +54,7 @@ export struct SingleMainListModel {
     filled_header_row: bool,
     selected_row: bool,
     is_source: bool,
+    is_hardlinked: bool,
     val_str: [string],
     val_int: [int]
 }
@@ -168,6 +169,7 @@ export struct PreviewMetadata {
     file_path: string,
     file_size: string,
     file_modified: string,
+    file_inode: string,
     image_dimensions: string,
     image_format: string,
     // Video metadata

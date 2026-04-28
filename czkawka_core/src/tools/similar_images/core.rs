@@ -1202,6 +1202,7 @@ mod tests {
             modified_date: 0,
             hash,
             difference: 0,
+            inode: 0,
         }
     }
 }

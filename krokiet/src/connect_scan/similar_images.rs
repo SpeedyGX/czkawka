@@ -10,7 +10,7 @@ use czkawka_core::tools::similar_images::core::get_string_from_similarity;
 use czkawka_core::tools::similar_images::{ImagesEntry, SimilarImages, SimilarImagesParameters};
 use humansize::{BINARY, format_size};
 use rayon::prelude::*;
-use slint::{ComponentHandle, ModelRc, SharedString, VecModel, Weak};
+use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel, Weak};
 
 use crate::common::{MAX_INT_DATA_SIMILAR_IMAGES, MAX_STR_DATA_SIMILAR_IMAGES, split_u64_into_i32s};
 use crate::connect_scan::{MessagesData, ScanData, get_dt_timestamp_string, get_text_messages, insert_data_to_model, reset_selection_at_end, set_common_settings};
@@ -88,16 +88,47 @@ fn write_similar_images_results(
 
     let items = Rc::new(VecModel::default());
     for (ref_fe, vec_fe) in vector {
+        // Build inode frequency map for this group to detect hardlinks
+        let mut inode_counts = std::collections::HashMap::new();
+        if let Some(ref ref_fe) = ref_fe {
+            if ref_fe.inode > 0 {
+                *inode_counts.entry(ref_fe.inode).or_insert(0u32) += 1;
+            }
+        }
+        for fe in &vec_fe {
+            if fe.inode > 0 {
+                *inode_counts.entry(fe.inode).or_insert(0u32) += 1;
+            }
+        }
+
         if let Some(ref_fe) = ref_fe {
+            let is_hardlinked = ref_fe.inode > 0 && inode_counts.get(&ref_fe.inode).copied().unwrap_or(0) > 1;
             let (data_model_str, data_model_int) = prepare_data_model_similar_images(ref_fe, hash_size);
             insert_data_to_model(&items, data_model_str, data_model_int, Some(true));
+
+            let last_idx = items.row_count() - 1;
+            if is_hardlinked {
+                if let Some(mut row) = items.row_data(last_idx) {
+                    row.is_hardlinked = true;
+                    items.set_row_data(last_idx, row);
+                }
+            }
         } else {
             insert_data_to_model(&items, ModelRc::new(VecModel::default()), ModelRc::new(VecModel::default()), Some(false));
         }
 
         for fe in vec_fe {
+            let is_hardlinked = fe.inode > 0 && inode_counts.get(&fe.inode).copied().unwrap_or(0) > 1;
             let (data_model_str, data_model_int) = prepare_data_model_similar_images(fe, hash_size);
             insert_data_to_model(&items, data_model_str, data_model_int, None);
+
+            if is_hardlinked {
+                let last_idx = items.row_count() - 1;
+                if let Some(mut row) = items.row_data(last_idx) {
+                    row.is_hardlinked = true;
+                    items.set_row_data(last_idx, row);
+                }
+            }
         }
     }
     app.set_similar_images_model(items.into());
@@ -129,10 +160,12 @@ fn prepare_data_model_similar_images(fe: ImagesEntry, hash_size: u8) -> (ModelRc
         file.into(),
         directory.into(),
         get_dt_timestamp_string(fe.get_modified_date()).into(),
+        fe.inode.to_string().into(),
     ];
     let data_model_str = VecModel::from_slice(&data_model_str_arr);
     let modification_split = split_u64_into_i32s(fe.get_modified_date());
     let size_split = split_u64_into_i32s(fe.size);
+    let inode_split = split_u64_into_i32s(fe.inode);
     let data_model_int_arr: [i32; MAX_INT_DATA_SIMILAR_IMAGES] = [
         modification_split.0,
         modification_split.1,
@@ -142,6 +175,8 @@ fn prepare_data_model_similar_images(fe: ImagesEntry, hash_size: u8) -> (ModelRc
         fe.height as i32,
         (fe.width as u64 * fe.height as u64) as i32, // Limited to 2000MP, but using u64, because in cache it can exceed i32
         fe.difference as i32,
+        inode_split.0,
+        inode_split.1,
     ];
     let data_model_int = VecModel::from_slice(&data_model_int_arr);
     (data_model_str, data_model_int)

@@ -36,6 +36,7 @@ pub struct VideosEntry {
     pub vhash: VideoHash,
     pub difference: u32,
     pub error: String,
+    pub inode: u64,
 
     // Properties extracted from video
     pub fps: Option<f64>,
@@ -71,6 +72,7 @@ impl FileEntry {
             vhash: Default::default(),
             difference: 0,
             error: String::new(),
+            inode: self.inode,
             fps: None,
             codec: None,
             bitrate: None,

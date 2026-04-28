@@ -247,6 +247,12 @@ export component SelectableTableView inherits Rectangle {
                             vertical-alignment: center;
                             overflow: elide;
                         }
+                        if r.is_hardlinked : Image {
+                            width: 16px;
+                            height: 16px;
+                            source: @image-url("../icons/krokiet_hardlink.svg");
+                            vertical-alignment: center;
+                        }
                     }
                 }
             }

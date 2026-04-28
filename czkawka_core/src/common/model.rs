@@ -49,6 +49,7 @@ pub struct FileEntry {
     pub path: PathBuf,
     pub size: u64,
     pub modified_date: u64,
+    pub inode: u64,
 }
 
 impl ResultEntry for FileEntry {

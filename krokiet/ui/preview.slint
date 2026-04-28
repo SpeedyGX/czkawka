@@ -56,6 +56,10 @@ component MetadataPanel inherits Rectangle {
                 label_text: Translations.metadata_modified_text;
                 value_text: GuiState.preview_metadata.file_modified;
             }
+            if GuiState.preview_metadata.file_inode != "" : MetadataLabel {
+                label_text: Translations.metadata_inode_text;
+                value_text: GuiState.preview_metadata.file_inode;
+            }
 
             // Image group
             if GuiState.preview_metadata.image_dimensions != "" : MetadataLabel {

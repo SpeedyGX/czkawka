@@ -416,6 +416,16 @@ fn process_file_in_file_mode(
             size: metadata.len(),
             modified_date: get_modified_time(&metadata, warnings, &current_file_name, false),
             path: current_file_name,
+            inode: {
+                #[cfg(target_family = "unix")]
+                {
+                    metadata.ino()
+                }
+                #[cfg(not(target_family = "unix"))]
+                {
+                    0
+                }
+            },
         };
 
         fe_result.push(fe);
@@ -458,6 +468,16 @@ fn process_file_in_file_mode_path_check(
             size: metadata.len(),
             modified_date: get_modified_time(metadata, warnings, path, false),
             path: path.to_path_buf(),
+            inode: {
+                #[cfg(target_family = "unix")]
+                {
+                    metadata.ino()
+                }
+                #[cfg(not(target_family = "unix"))]
+                {
+                    0
+                }
+            },
         };
 
         fe_result.push(fe);
@@ -538,6 +558,16 @@ fn process_symlink_in_symlink_mode(
         size: metadata.len(),
         modified_date: get_modified_time(&metadata, warnings, &current_file_name, false),
         path: current_file_name,
+        inode: {
+            #[cfg(target_family = "unix")]
+            {
+                metadata.ino()
+            }
+            #[cfg(not(target_family = "unix"))]
+            {
+                0
+            }
+        },
     };
 
     fe_result.push(fe);
@@ -566,6 +596,16 @@ fn process_symlink_in_symlink_mode_path_check(
         size: metadata.len(),
         modified_date: get_modified_time(metadata, warnings, path, false),
         path: path.to_path_buf(),
+        inode: {
+            #[cfg(target_family = "unix")]
+            {
+                metadata.ino()
+            }
+            #[cfg(not(target_family = "unix"))]
+            {
+                0
+            }
+        },
     };
 
     fe_result.push(fe);

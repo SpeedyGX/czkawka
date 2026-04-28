@@ -165,6 +165,7 @@ column_duration = Duration
 column_exif_tags = EXIF Tags
 column_new_name = New Name
 column_full_path = Full Path
+column_inode = Inode
 
 # Slint translations
 ok_button = Ok

@@ -540,19 +540,20 @@ fn translate_items(app: &MainWindow) {
     let exif_tags = flk!("column_exif_tags");
     let new_dimensions = flk!("column_new_dimensions");
     let new_name = flk!("column_new_name");
+    let inode = flk!("column_inode");
 
     let fnm = |model: &[&str]| {
         let shared_string = model.iter().map(|s| (*s).into()).collect::<Vec<SharedString>>();
         ModelRc::new(VecModel::from(shared_string))
     };
 
-    settings.set_duplicates_column_name(fnm(&[&selection, &source, &size, &file_name, &path, &mod_date]));
+    settings.set_duplicates_column_name(fnm(&[&selection, &source, &size, &file_name, &path, &mod_date, &inode]));
     settings.set_empty_folders_column_name(fnm(&[&selection, &file_name, &path, &mod_date]));
     settings.set_empty_files_column_name(fnm(&[&selection, &file_name, &path, &mod_date]));
     settings.set_temporary_files_column_name(fnm(&[&selection, &file_name, &path, &mod_date]));
     settings.set_big_files_column_name(fnm(&[&selection, &size, &file_name, &path, &mod_date]));
-    settings.set_similar_images_column_name(fnm(&[&selection, &source, &similarity, &size, &dimensions, &file_name, &path, &mod_date]));
-    settings.set_similar_videos_column_name(fnm(&[&selection, &source, &size, &file_name, &path, &dimensions, &duration, &bitrate, &fps, &codec, &mod_date]));
+    settings.set_similar_images_column_name(fnm(&[&selection, &source, &similarity, &size, &dimensions, &file_name, &path, &mod_date, &inode]));
+    settings.set_similar_videos_column_name(fnm(&[&selection, &source, &size, &file_name, &path, &dimensions, &duration, &bitrate, &fps, &codec, &mod_date, &inode]));
     settings.set_similar_music_column_name(fnm(&[&selection, &source, &size, &file_name, &title, &artist, &year, &bitrate, &length, &genre, &path, &mod_date]));
     settings.set_invalid_symlink_column_name(fnm(&[&selection, &symlink_name, &symlink_folder, &destination_path, &mod_date]));
     settings.set_broken_files_column_name(fnm(&[&selection, &file_name, &path, &type_of_error, &size, &mod_date]));

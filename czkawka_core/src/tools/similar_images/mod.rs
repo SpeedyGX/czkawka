@@ -39,6 +39,7 @@ pub struct ImagesEntry {
     pub modified_date: u64,
     pub hash: ImHash,
     pub difference: u32,
+    pub inode: u64,
 }
 
 impl ResultEntry for ImagesEntry {
@@ -63,6 +64,7 @@ impl FileEntry {
             height: 0,
             hash: Vec::new(),
             difference: 0,
+            inode: self.inode,
         }
     }
 }

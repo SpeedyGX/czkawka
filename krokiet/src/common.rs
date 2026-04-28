@@ -17,8 +17,10 @@ pub enum IntDataDuplicateFiles {
     ModificationDatePart2,
     SizePart1,
     SizePart2,
+    InodePart1,
+    InodePart2,
 }
-pub const MAX_INT_DATA_DUPLICATE_FILES: usize = IntDataDuplicateFiles::SizePart2 as usize + 1;
+pub const MAX_INT_DATA_DUPLICATE_FILES: usize = IntDataDuplicateFiles::InodePart2 as usize + 1;
 
 #[repr(u8)]
 #[derive(Debug, Eq, PartialEq, TryFromPrimitive)]
@@ -27,8 +29,9 @@ pub enum StrDataDuplicateFiles {
     Name,
     Path,
     ModificationDate,
+    Inode,
 }
-pub const MAX_STR_DATA_DUPLICATE_FILES: usize = StrDataDuplicateFiles::ModificationDate as usize + 1;
+pub const MAX_STR_DATA_DUPLICATE_FILES: usize = StrDataDuplicateFiles::Inode as usize + 1;
 
 // Empty Folders
 #[repr(u8)]
@@ -119,8 +122,10 @@ pub enum IntDataSimilarImages {
     Height,
     PixelCount,
     SimilarityValue,
+    InodePart1,
+    InodePart2,
 }
-pub const MAX_INT_DATA_SIMILAR_IMAGES: usize = IntDataSimilarImages::SimilarityValue as usize + 1;
+pub const MAX_INT_DATA_SIMILAR_IMAGES: usize = IntDataSimilarImages::InodePart2 as usize + 1;
 
 #[repr(u8)]
 #[derive(Debug, Eq, PartialEq, TryFromPrimitive)]
@@ -131,8 +136,9 @@ pub enum StrDataSimilarImages {
     Name,
     Path,
     ModificationDate,
+    Inode,
 }
-pub const MAX_STR_DATA_SIMILAR_IMAGES: usize = StrDataSimilarImages::ModificationDate as usize + 1;
+pub const MAX_STR_DATA_SIMILAR_IMAGES: usize = StrDataSimilarImages::Inode as usize + 1;
 
 // Similar Videos
 #[repr(u8)]
@@ -148,8 +154,10 @@ pub enum IntDataSimilarVideos {
     Duration,
     Fps,
     Dimensions,
+    InodePart1,
+    InodePart2,
 }
-pub const MAX_INT_DATA_SIMILAR_VIDEOS: usize = IntDataSimilarVideos::Dimensions as usize + 1;
+pub const MAX_INT_DATA_SIMILAR_VIDEOS: usize = IntDataSimilarVideos::InodePart2 as usize + 1;
 
 #[repr(u8)]
 #[derive(Debug, Eq, PartialEq, TryFromPrimitive)]
@@ -165,8 +173,9 @@ pub enum StrDataSimilarVideos {
     Codec,
     ModificationDate,
     PreviewPath,
+    Inode,
 }
-pub const MAX_STR_DATA_SIMILAR_VIDEOS: usize = StrDataSimilarVideos::PreviewPath as usize + 1;
+pub const MAX_STR_DATA_SIMILAR_VIDEOS: usize = StrDataSimilarVideos::Inode as usize + 1;
 
 // Similar Music
 #[repr(u8)]
@@ -363,7 +372,7 @@ impl ActiveTab {
                 StrDataEmptyFiles::ModificationDate => SortIdx::IntIdxPair(IntDataEmptyFiles::ModificationDatePart1 as i32, IntDataEmptyFiles::ModificationDatePart2 as i32),
             },
             Self::SimilarImages => match StrDataSimilarImages::try_from(str_idx as u8).unwrap_or_else(|_| panic!("Invalid str idx {str_idx} for SimilarImages")) {
-                StrDataSimilarImages::Similarity | StrDataSimilarImages::Name | StrDataSimilarImages::Path => SortIdx::StrIdx(str_idx),
+                StrDataSimilarImages::Similarity | StrDataSimilarImages::Name | StrDataSimilarImages::Path | StrDataSimilarImages::Inode => SortIdx::StrIdx(str_idx),
                 StrDataSimilarImages::ModificationDate => {
                     SortIdx::IntIdxPair(IntDataSimilarImages::ModificationDatePart1 as i32, IntDataSimilarImages::ModificationDatePart2 as i32)
                 }
@@ -371,7 +380,7 @@ impl ActiveTab {
                 StrDataSimilarImages::Resolution => SortIdx::IntIdx(IntDataSimilarImages::PixelCount as i32),
             },
             Self::DuplicateFiles => match StrDataDuplicateFiles::try_from(str_idx as u8).unwrap_or_else(|_| panic!("Invalid str idx {str_idx} for DuplicateFiles")) {
-                StrDataDuplicateFiles::Name | StrDataDuplicateFiles::Path => SortIdx::StrIdx(str_idx),
+                StrDataDuplicateFiles::Name | StrDataDuplicateFiles::Path | StrDataDuplicateFiles::Inode => SortIdx::StrIdx(str_idx),
                 StrDataDuplicateFiles::ModificationDate => {
                     SortIdx::IntIdxPair(IntDataDuplicateFiles::ModificationDatePart1 as i32, IntDataDuplicateFiles::ModificationDatePart2 as i32)
                 }
@@ -389,7 +398,7 @@ impl ActiveTab {
                 }
             },
             Self::SimilarVideos => match StrDataSimilarVideos::try_from(str_idx as u8).unwrap_or_else(|_| panic!("Invalid str idx {str_idx} for SimilarVideos")) {
-                StrDataSimilarVideos::Similarity | StrDataSimilarVideos::Name | StrDataSimilarVideos::Path | StrDataSimilarVideos::Codec | StrDataSimilarVideos::PreviewPath => SortIdx::StrIdx(str_idx),
+                StrDataSimilarVideos::Similarity | StrDataSimilarVideos::Name | StrDataSimilarVideos::Path | StrDataSimilarVideos::Codec | StrDataSimilarVideos::PreviewPath | StrDataSimilarVideos::Inode => SortIdx::StrIdx(str_idx),
                 StrDataSimilarVideos::ModificationDate => {
                     SortIdx::IntIdxPair(IntDataSimilarVideos::ModificationDatePart1 as i32, IntDataSimilarVideos::ModificationDatePart2 as i32)
                 }
