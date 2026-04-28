@@ -62,6 +62,9 @@ impl ResultEntry for FileEntry {
     fn get_size(&self) -> u64 {
         self.size
     }
+    fn get_inode(&self) -> u64 {
+        self.inode
+    }
 }
 
 #[derive(PartialEq, Eq, Clone, Debug, Copy, Default)]
@@ -98,6 +101,7 @@ mod tests {
             path: PathBuf::from("/test/file.txt"),
             size: 1024,
             modified_date: 123456,
+            inode: 0,
         };
 
         assert_eq!(entry.get_path(), Path::new("/test/file.txt"));

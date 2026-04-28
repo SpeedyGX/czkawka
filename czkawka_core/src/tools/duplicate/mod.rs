@@ -54,6 +54,9 @@ impl ResultEntry for DuplicateEntry {
     fn get_size(&self) -> u64 {
         self.size
     }
+    fn get_inode(&self) -> u64 {
+        self.inode
+    }
 }
 
 impl FileEntry {

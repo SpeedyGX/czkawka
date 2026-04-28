@@ -800,26 +800,15 @@ mod tests {
                 grouped_file_entries,
             } => {
                 let actual: IndexSet<_> = grouped_file_entries.into_values().flatten().collect();
-                assert_eq!(
-                    IndexSet::from([
-                        FileEntry {
-                            path: normalize_path(&src),
-                            size: 1,
-                            modified_date: secs,
-                        },
-                        FileEntry {
-                            path: normalize_path(&hard),
-                            size: 1,
-                            modified_date: secs,
-                        },
-                        FileEntry {
-                            path: normalize_path(&other_file),
-                            size: 1,
-                            modified_date: secs,
-                        },
-                    ]),
-                    actual
-                );
+                let expected: IndexSet<_> = [
+                    normalize_path(&src),
+                    normalize_path(&hard),
+                    normalize_path(&other_file),
+                ]
+                .into_iter()
+                .collect();
+                let actual_paths: IndexSet<_> = actual.into_iter().map(|e| e.path).collect();
+                assert_eq!(expected, actual_paths);
             }
             DirTraversalResult::Stopped => {
                 panic!("Expect SuccessFiles.");
@@ -878,16 +867,8 @@ mod tests {
         let mut actual: Vec<_> = run_traversal(&common_data);
         actual.iter_mut().for_each(|e| e.path = normalize_path(&e.path));
         assert_eq!(2, actual.len());
-        assert!(actual.contains(&FileEntry {
-            path: global_file.clone(),
-            size: 11,
-            modified_date: secs
-        }));
-        assert!(actual.contains(&FileEntry {
-            path: other_file.clone(),
-            size: 10,
-            modified_date: secs
-        }));
+        assert!(actual.iter().any(|e| e.path == global_file && e.size == 11 && e.modified_date == secs));
+        assert!(actual.iter().any(|e| e.path == other_file && e.size == 10 && e.modified_date == secs));
 
         let mut common_data2 = CommonToolData::new(ToolType::SimilarImages);
         common_data2.directories.set_included_paths([dir.path().to_owned()].to_vec());
@@ -897,11 +878,7 @@ mod tests {
         let mut actual: Vec<_> = run_traversal(&common_data2);
         actual.iter_mut().for_each(|e| e.path = normalize_path(&e.path));
         assert_eq!(1, actual.len());
-        assert!(actual.contains(&FileEntry {
-            path: global_file.clone(),
-            size: 11,
-            modified_date: secs
-        }));
+        assert!(actual.iter().any(|e| e.path == global_file && e.size == 11 && e.modified_date == secs));
 
         let mut common_data3 = CommonToolData::new(ToolType::SimilarImages);
         common_data3.directories.set_included_paths([dir.path().to_owned()].to_vec());
@@ -911,11 +888,7 @@ mod tests {
         let mut actual: Vec<_> = run_traversal(&common_data3);
         actual.iter_mut().for_each(|e| e.path = normalize_path(&e.path));
         assert_eq!(1, actual.len());
-        assert!(actual.contains(&FileEntry {
-            path: global_file.clone(),
-            size: 11,
-            modified_date: secs
-        }));
+        assert!(actual.iter().any(|e| e.path == global_file && e.size == 11 && e.modified_date == secs));
 
         let mut common_data4 = CommonToolData::new(ToolType::SimilarImages);
         common_data4.directories.set_included_paths([global_file.clone()].to_vec());
@@ -924,11 +897,7 @@ mod tests {
         let mut actual: Vec<_> = run_traversal(&common_data4);
         actual.iter_mut().for_each(|e| e.path = normalize_path(&e.path));
         assert_eq!(1, actual.len());
-        assert!(actual.contains(&FileEntry {
-            path: global_file.clone(),
-            size: 11,
-            modified_date: secs
-        }));
+        assert!(actual.iter().any(|e| e.path == global_file && e.size == 11 && e.modified_date == secs));
 
         let mut common_data5 = CommonToolData::new(ToolType::SimilarImages);
         common_data5.directories.set_included_paths([global_file.clone(), other_file.clone()].to_vec());
@@ -937,16 +906,8 @@ mod tests {
         let mut actual: Vec<_> = run_traversal(&common_data5);
         actual.iter_mut().for_each(|e| e.path = normalize_path(&e.path));
         assert_eq!(2, actual.len());
-        assert!(actual.contains(&FileEntry {
-            path: global_file.clone(),
-            size: 11,
-            modified_date: secs
-        }));
-        assert!(actual.contains(&FileEntry {
-            path: other_file.clone(),
-            size: 10,
-            modified_date: secs
-        }));
+        assert!(actual.iter().any(|e| e.path == global_file && e.size == 11 && e.modified_date == secs));
+        assert!(actual.iter().any(|e| e.path == other_file && e.size == 10 && e.modified_date == secs));
 
         // Other file should be excluded by optimizer, but it works even without it, so we can keep this test, but can be removed if it will start to fail
         let mut common_data6 = CommonToolData::new(ToolType::SimilarImages);
@@ -957,11 +918,7 @@ mod tests {
         let mut actual: Vec<_> = run_traversal(&common_data6);
         actual.iter_mut().for_each(|e| e.path = normalize_path(&e.path));
         assert_eq!(1, actual.len());
-        assert!(actual.contains(&FileEntry {
-            path: global_file,
-            size: 11,
-            modified_date: secs
-        }));
+        assert!(actual.iter().any(|e| e.path == global_file && e.size == 11 && e.modified_date == secs));
 
         // This test is invalid - other dir should be removed by optimizer
         // let mut common_data7 = CommonToolData::new(ToolType::SimilarImages);
@@ -998,19 +955,11 @@ mod tests {
                 warnings: _,
                 grouped_file_entries,
             } => {
-                let actual: IndexSet<_> = grouped_file_entries.into_iter().flat_map(take_1_per_inode).collect();
+                let actual: IndexSet<_> = grouped_file_entries.into_iter().flat_map(take_1_per_inode).map(|e| e.path).collect();
                 assert_eq!(
                     IndexSet::from([
-                        FileEntry {
-                            path: normalize_path(&src),
-                            size: 1,
-                            modified_date: secs,
-                        },
-                        FileEntry {
-                            path: normalize_path(&other),
-                            size: 1,
-                            modified_date: secs,
-                        },
+                        normalize_path(&src),
+                        normalize_path(&other),
                     ]),
                     actual
                 );
@@ -1045,24 +994,12 @@ mod tests {
                 warnings: _,
                 grouped_file_entries,
             } => {
-                let actual: IndexSet<_> = grouped_file_entries.into_iter().flat_map(take_1_per_inode).collect();
+                let actual: IndexSet<_> = grouped_file_entries.into_iter().flat_map(take_1_per_inode).map(|e| e.path).collect();
                 assert_eq!(
                     IndexSet::from([
-                        FileEntry {
-                            path: src,
-                            size: 1,
-                            modified_date: secs,
-                        },
-                        FileEntry {
-                            path: hard,
-                            size: 1,
-                            modified_date: secs,
-                        },
-                        FileEntry {
-                            path: other,
-                            size: 1,
-                            modified_date: secs,
-                        },
+                        src,
+                        hard,
+                        other,
                     ]),
                     actual
                 );

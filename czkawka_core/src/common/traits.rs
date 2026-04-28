@@ -130,6 +130,14 @@ pub trait ResultEntry {
     fn get_path(&self) -> &Path;
     fn get_modified_date(&self) -> u64;
     fn get_size(&self) -> u64;
+
+    /// Returns the inode number of the file.
+    ///
+    /// Defaults to `0` (used on non-Unix platforms where inodes are not available).
+    /// On Unix, implementors should return the actual inode from [`std::os::unix::fs::MetadataExt::ino`].
+    fn get_inode(&self) -> u64 {
+        0
+    }
 }
 
 pub trait Search {

@@ -52,6 +52,9 @@ impl ResultEntry for ImagesEntry {
     fn get_size(&self) -> u64 {
         self.size
     }
+    fn get_inode(&self) -> u64 {
+        self.inode
+    }
 }
 impl FileEntry {
     fn into_images_entry(self) -> ImagesEntry {

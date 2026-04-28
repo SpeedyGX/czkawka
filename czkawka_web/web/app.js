@@ -805,6 +805,15 @@ async function performHardlink(sourcePath, targetPath, groupIdx) {
     }
 }
 
+function getInodeForPath(filePath) {
+    for (const group of STATE.groups) {
+        for (const f of group.files || []) {
+            if (f.path === filePath) return f.inode;
+        }
+    }
+    return 0;
+}
+
 async function hardlinkSelected() {
     // Group checked files by their data-group attribute
     const byGroup = {};
@@ -838,7 +847,13 @@ async function hardlinkSelected() {
             return;
         }
         // Filter out source file itself AND already-linked files
-        const targets = paths.filter(p => p !== source && !STATE.linkedPaths.has(p));
+        const srcInode = getInodeForPath(source);
+        const targets = paths.filter(p => {
+            if (p === source) return false;
+            if (srcInode === 0) return true; // no inode info, include target
+            const tgtInode = getInodeForPath(p);
+            return tgtInode === 0 || tgtInode !== srcInode;
+        });
         if (targets.length === 0) continue;
         for (const t of targets) {
             allSources.push(source);

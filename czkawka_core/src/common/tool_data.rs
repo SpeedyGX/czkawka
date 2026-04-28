@@ -624,16 +624,19 @@ mod tests {
                 path: PathBuf::from("/a"),
                 size: 100,
                 modified_date: 1,
+                inode: 0,
             },
             FileEntry {
                 path: PathBuf::from("/b"),
                 size: 200,
                 modified_date: 2,
+                inode: 0,
             },
             FileEntry {
                 path: PathBuf::from("/c"),
                 size: 300,
                 modified_date: 3,
+                inode: 0,
             },
         ];
 
@@ -682,11 +685,13 @@ mod tests {
                 path: file1.clone(),
                 size: 14,
                 modified_date: 1,
+                inode: 0,
             },
             FileEntry {
                 path: file2.clone(),
                 size: 14,
                 modified_date: 2,
+                inode: 0,
             },
         ];
 
@@ -717,11 +722,13 @@ mod tests {
                 path: file1.clone(),
                 size: 14,
                 modified_date: 1,
+                inode: 0,
             },
             FileEntry {
                 path: file2.clone(),
                 size: 14,
                 modified_date: 2,
+                inode: 0,
             },
         ];
 
@@ -746,6 +753,7 @@ mod tests {
             path: file1.clone(),
             size: 12,
             modified_date: 1,
+            inode: 0,
         }];
 
         let tool = MockTool::new();
@@ -765,6 +773,7 @@ mod tests {
             path: nonexistent_file,
             size: 100,
             modified_date: 1,
+            inode: 0,
         }];
 
         let tool = MockTool::new();
@@ -789,11 +798,13 @@ mod tests {
                 path: file1.clone(),
                 size: 8,
                 modified_date: 1,
+                inode: 0,
             },
             FileEntry {
                 path: file2.clone(),
                 size: 8,
                 modified_date: 2,
+                inode: 0,
             },
         ];
 
@@ -817,6 +828,7 @@ mod tests {
             path: file1.clone(),
             size: 7,
             modified_date: 1,
+            inode: 0,
         }];
 
         let mut tool = MockTool::new();
@@ -842,16 +854,19 @@ mod tests {
                 path: file1.clone(),
                 size: 1,
                 modified_date: 1,
+                inode: 0,
             },
             FileEntry {
                 path: file2.clone(),
                 size: 1,
                 modified_date: 2,
+                inode: 0,
             },
             FileEntry {
                 path: file3.clone(),
                 size: 1,
                 modified_date: 3,
+                inode: 0,
             },
         ]];
 
@@ -882,16 +897,19 @@ mod tests {
                 path: file1.clone(),
                 size: 1,
                 modified_date: 1,
+                inode: 0,
             },
             FileEntry {
                 path: file2.clone(),
                 size: 1,
                 modified_date: 2,
+                inode: 0,
             },
             FileEntry {
                 path: file3.clone(),
                 size: 1,
                 modified_date: 3,
+                inode: 0,
             },
         ]];
 
@@ -922,16 +940,19 @@ mod tests {
                 path: file1.clone(),
                 size: 1,
                 modified_date: 1,
+                inode: 0,
             },
             FileEntry {
                 path: file2.clone(),
                 size: 1,
                 modified_date: 2,
+                inode: 0,
             },
             FileEntry {
                 path: file3.clone(),
                 size: 1,
                 modified_date: 3,
+                inode: 0,
             },
         ]];
 
@@ -962,16 +983,19 @@ mod tests {
                 path: file1.clone(),
                 size: 1,
                 modified_date: 1,
+                inode: 0,
             },
             FileEntry {
                 path: file2.clone(),
                 size: 1,
                 modified_date: 2,
+                inode: 0,
             },
             FileEntry {
                 path: file3.clone(),
                 size: 1,
                 modified_date: 3,
+                inode: 0,
             },
         ]];
 
@@ -1002,16 +1026,19 @@ mod tests {
                 path: file1.clone(),
                 size: 1,
                 modified_date: 1,
+                inode: 0,
             },
             FileEntry {
                 path: file2.clone(),
                 size: 2,
                 modified_date: 1,
+                inode: 0,
             },
             FileEntry {
                 path: file3.clone(),
                 size: 3,
                 modified_date: 1,
+                inode: 0,
             },
         ]];
 
@@ -1042,16 +1069,19 @@ mod tests {
                 path: file1.clone(),
                 size: 1,
                 modified_date: 1,
+                inode: 0,
             },
             FileEntry {
                 path: file2.clone(),
                 size: 2,
                 modified_date: 1,
+                inode: 0,
             },
             FileEntry {
                 path: file3.clone(),
                 size: 3,
                 modified_date: 1,
+                inode: 0,
             },
         ]];
 
@@ -1080,11 +1110,13 @@ mod tests {
                 path: file1.clone(),
                 size: 1,
                 modified_date: 1,
+                inode: 0,
             },
             FileEntry {
                 path: file2.clone(),
                 size: 1,
                 modified_date: 2,
+                inode: 0,
             },
         ]];
 
@@ -1117,11 +1149,13 @@ mod tests {
                     path: file1.clone(),
                     size: 1,
                     modified_date: 1,
+                    inode: 0,
                 },
                 FileEntry {
                     path: file2.clone(),
                     size: 1,
                     modified_date: 2,
+                    inode: 0,
                 },
             ],
             vec![
@@ -1129,11 +1163,13 @@ mod tests {
                     path: file3.clone(),
                     size: 1,
                     modified_date: 1,
+                    inode: 0,
                 },
                 FileEntry {
                     path: file4.clone(),
                     size: 1,
                     modified_date: 2,
+                    inode: 0,
                 },
             ],
         ];
@@ -1164,11 +1200,13 @@ mod tests {
                 path: file1,
                 size: 1,
                 modified_date: 1,
+                inode: 0,
             },
             FileEntry {
                 path: file2,
                 size: 1,
                 modified_date: 2,
+                inode: 0,
             },
         ]];
 

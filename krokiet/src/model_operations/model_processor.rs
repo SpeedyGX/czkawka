@@ -189,9 +189,11 @@ impl ModelProcessor {
 
                 let fnc = |grouped_items: Vec<(usize, SimplerSingleMainListModel)>| -> Vec<(usize, SimplerSingleMainListModel, Option<Result<(), String>>)> {
                     // In this mode, first check for is_source flag, then header may be used if contains filled data or first selected item in group if this is not reference mode
+                    // Prioritize is_source over checked, because user explicitly marked a file as source
                     let Some((main_idx, main_item)) = grouped_items
                         .iter()
-                        .find(|(_idx, data)| data.is_source || data.checked || (data.header_row && data.filled_header_row))
+                        .find(|(_idx, data)| data.is_source)
+                        .or_else(|| grouped_items.iter().find(|(_idx, data)| data.checked || (data.header_row && data.filled_header_row)))
                         .cloned()
                     else {
                         // No selected items in group, so return all items as is

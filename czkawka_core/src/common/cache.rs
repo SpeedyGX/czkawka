@@ -121,6 +121,9 @@ where
             if file_entry.get_modified_date() != used_file.get_modified_date() {
                 return false;
             }
+            if file_entry.get_inode() != used_file.get_inode() {
+                return false;
+            }
         }
         true
     };
@@ -151,24 +154,27 @@ pub fn load_cache_from_file_generalized_by_size<T>(
 where
     for<'a> T: Deserialize<'a> + ResultEntry + Sized + Send + Sync + Clone,
 {
-    debug!("Converting cache BtreeMap<u64, Vec<T>> into IndexMap<String, (u64, u64)>");
-    let used_files: IndexMap<String, (u64, u64)> = cache_not_converted
+    debug!("Converting cache BtreeMap<u64, Vec<T>> into IndexMap<String, (u64, u64, u64)>");
+    let used_files: IndexMap<String, (u64, u64, u64)> = cache_not_converted
         .iter()
         .flat_map(|(size, vec)| {
             vec.iter()
-                .map(move |file_entry| (file_entry.get_path().to_string_lossy().into_owned(), (*size, file_entry.get_modified_date())))
+                .map(move |file_entry| (file_entry.get_path().to_string_lossy().into_owned(), (*size, file_entry.get_modified_date(), file_entry.get_inode())))
         })
         .collect();
-    debug!("Converted cache BtreeMap<u64, Vec<T>> into IndexMap<String, (u64, u64)>");
+    debug!("Converted cache BtreeMap<u64, Vec<T>> into IndexMap<String, (u64, u64, u64)>");
 
     let check_file = |file_entry: &T| {
         let file_entry_path_str = file_entry.get_path().to_string_lossy();
         let key: &str = file_entry_path_str.as_ref();
-        if let Some((size, modification_date)) = used_files.get(key) {
+        if let Some((size, modification_date, inode)) = used_files.get(key) {
             if file_entry.get_size() != *size {
                 return false;
             }
             if file_entry.get_modified_date() != *modification_date {
+                return false;
+            }
+            if file_entry.get_inode() != *inode {
                 return false;
             }
         }
