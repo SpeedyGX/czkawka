@@ -127,7 +127,27 @@ impl SimilarImages {
             return WorkContinueStatus::Continue;
         }
 
-        let (loaded_hash_map, records_already_cached, non_cached_files_to_check) = self.hash_images_load_cache();
+        let (loaded_hash_map, mut records_already_cached, mut non_cached_files_to_check) = self.hash_images_load_cache();
+
+        // Inode-based cache fallback: if a file is not in cache by path,
+        // check if another file with the same inode is cached (hardlinks).
+        // If so, reuse the cached hash instead of recomputing it.
+        let mut remaining = BTreeMap::new();
+        for (name, file_entry) in non_cached_files_to_check {
+            if file_entry.inode != 0 {
+                if let Some(cached_entry) = loaded_hash_map
+                    .values()
+                    .find(|cached| cached.inode == file_entry.inode)
+                {
+                    let mut cached = cached_entry.clone();
+                    cached.path = file_entry.path;
+                    records_already_cached.insert(name, cached);
+                    continue;
+                }
+            }
+            remaining.insert(name, file_entry);
+        }
+        non_cached_files_to_check = remaining;
 
         let progress_handler = prepare_thread_handler_common(
             progress_sender,

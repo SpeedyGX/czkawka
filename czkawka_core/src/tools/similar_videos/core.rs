@@ -136,7 +136,37 @@ impl SimilarVideos {
             return WorkContinueStatus::Continue;
         }
 
-        let (loaded_hash_map, records_already_cached, non_cached_files_to_check) = self.load_cache_at_start();
+        let (loaded_hash_map, mut records_already_cached, mut non_cached_files_to_check) = self.load_cache_at_start();
+
+        // Inode-based cache fallback: if a file is not in cache by path,
+        // check if another file with the same inode is cached (hardlinks).
+        // If so, reuse the cached hash and metadata instead of recomputing.
+        // VideoHash stores src_path internally, so we fix it via JSON serialization.
+        let mut remaining = BTreeMap::new();
+        for (name, file_entry) in non_cached_files_to_check {
+            if file_entry.inode != 0 {
+                if let Some(cached_entry) = loaded_hash_map
+                    .values()
+                    .find(|cached| cached.inode == file_entry.inode)
+                {
+                    let mut cached = cached_entry.clone();
+                    cached.path = file_entry.path.clone();
+                    // Fix VideoHash src_path to point to the new file path
+                    if let Ok(mut json_value) = serde_json::to_value(&cached.vhash) {
+                        if let Some(obj) = json_value.as_object_mut() {
+                            obj.insert("src_path".to_string(), serde_json::Value::String(file_entry.path.to_string_lossy().to_string()));
+                            if let Ok(fixed_vhash) = serde_json::from_value(json_value) {
+                                cached.vhash = fixed_vhash;
+                            }
+                        }
+                    }
+                    records_already_cached.insert(name, cached);
+                    continue;
+                }
+            }
+            remaining.insert(name, file_entry);
+        }
+        non_cached_files_to_check = remaining;
 
         let progress_handler = prepare_thread_handler_common(
             progress_sender,
