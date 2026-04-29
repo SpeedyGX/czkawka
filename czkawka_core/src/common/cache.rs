@@ -95,11 +95,23 @@ pub(crate) fn extract_loaded_cache<T>(
     records_already_cached: &mut BTreeMap<String, T>,
     non_cached_files_to_check: &mut BTreeMap<String, T>,
 ) where
-    T: Clone,
+    T: Clone + ResultEntry,
 {
     for (name, file_entry) in files_to_check {
         if let Some(cached_file_entry) = loaded_hash_map.get(&name) {
+            // HIT by path
             records_already_cached.insert(name, cached_file_entry.clone());
+        } else if file_entry.get_inode() != 0 {
+            // MISS by path → try inode-based fallback
+            let inode_fallback = loaded_hash_map
+                .values()
+                .find(|cached| cached.get_inode() == file_entry.get_inode() && cached.get_inode() != 0);
+            if inode_fallback.is_some() {
+                // HIT by inode → same content, use cached hash
+                records_already_cached.insert(name, file_entry);
+            } else {
+                non_cached_files_to_check.insert(name, file_entry);
+            }
         } else {
             non_cached_files_to_check.insert(name, file_entry);
         }

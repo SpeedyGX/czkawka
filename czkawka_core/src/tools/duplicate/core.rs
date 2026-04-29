@@ -544,7 +544,18 @@ impl DuplicateFinder {
                 }
                 for file_entry in vec_file_entry {
                     if let Some(cached_file_entry) = cached_path_entries.swap_remove(file_entry.path.as_path()) {
+                        // HIT by path
                         records_already_cached.entry(size).or_default().push(cached_file_entry);
+                    } else if file_entry.inode != 0 {
+                        // MISS by path → try inode-based fallback
+                        let inode_key = file_entry.inode;
+                        if let Some(pos) = cached_path_entries.iter().position(|(_, entry)| entry.inode == inode_key) {
+                            // HIT by inode
+                            let (_path, removed) = cached_path_entries.swap_remove_index(pos).unwrap();
+                            records_already_cached.entry(size).or_default().push(removed);
+                        } else {
+                            non_cached_files_to_check.entry(size).or_default().push(file_entry);
+                        }
                     } else {
                         non_cached_files_to_check.entry(size).or_default().push(file_entry);
                     }
