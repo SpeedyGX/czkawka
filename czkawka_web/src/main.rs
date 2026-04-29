@@ -3,6 +3,7 @@ mod embedded;
 mod scan_manager;
 mod ws;
 
+use std::io::IsTerminal;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -16,6 +17,43 @@ use crate::scan_manager::ScanManager;
 
 #[tokio::main]
 async fn main() {
+    // If launched by double-click (no terminal attached), re-exec in a terminal
+    if !std::io::stdin().is_terminal() {
+        let exe = std::env::current_exe().expect("failed to get current executable path");
+        // Wrap in shell so terminal stays open if the binary crashes
+        let wrapper = format!("{}; echo; read -p 'Press Enter to exit...'", exe.display());
+
+        // Try common terminal emulators in order of preference
+        // x-terminal-emulator is the Debian/Ubuntu standard symlink
+        let terminals = [
+            "x-terminal-emulator", // Debian/Ubuntu default
+            "gnome-terminal",      // GNOME
+            "konsole",             // KDE
+            "xfce4-terminal",      // XFCE
+            "lxterminal",          // LXDE/LXQt
+            "xterm",               // Universal fallback
+        ];
+
+        for term in &terminals {
+            // Use Command::new(term) directly - if the binary exists, spawn will succeed
+            if let Ok(mut _child) = std::process::Command::new(term)
+                .arg("-e")
+                .arg("bash")
+                .arg("-c")
+                .arg(&wrapper)
+                .spawn()
+            {
+                // Successfully launched in a terminal - exit the headless process
+                // gnome-terminal/konsole daemonize, so we don't wait
+                std::process::exit(0);
+            }
+        }
+
+        // No terminal found - print a warning and continue running anyway
+        eprintln!("Warning: Not running in a terminal. Cannot find a terminal emulator to launch.");
+        eprintln!("The server will start but you may need to use 'kill' or system monitor to stop it.");
+    }
+
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::INFO)
         .init();
