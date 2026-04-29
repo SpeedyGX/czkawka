@@ -161,7 +161,7 @@ fn load_video_thumbnail(video_path: &Path, _settings: &Settings) -> Option<PathB
         &thumbnails_dir,
         10,    // thumbnail_video_percentage_from_start
         false, // generate_grid_instead_of_single
-        0,     // thumbnail_grid_tiles_per_side
+        1,     // thumbnail_grid_tiles_per_side (1 = single tile, same as full frame)
         true,  // generate_thumbnails
     )
     .ok()?

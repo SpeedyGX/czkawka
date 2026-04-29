@@ -183,11 +183,14 @@ pub fn generate_thumbnail(
         return Ok(None);
     }
 
-    let seek_time = duration.map_or(5.0, |d| d * (thumbnail_video_percentage_from_start as f64) / 100.0);
-    let duration_per_tile_items = duration.map_or(0.5, |d| d / (thumbnail_grid_tiles_per_side * thumbnail_grid_tiles_per_side + 2) as f64);
+    // Guard against zero — callers may pass 0 when generating a single thumbnail
+    let tile_count = thumbnail_grid_tiles_per_side.max(1);
 
-    let max_height = 1080 / thumbnail_grid_tiles_per_side as u32;
-    let max_width = 1920 / thumbnail_grid_tiles_per_side as u32;
+    let seek_time = duration.map_or(5.0, |d| d * (thumbnail_video_percentage_from_start as f64) / 100.0);
+    let duration_per_tile_items = duration.map_or(0.5, |d| d / (tile_count * tile_count + 2) as f64);
+
+    let max_height = 1080 / tile_count as u32;
+    let max_width = 1920 / tile_count as u32;
 
     if generate_grid_instead_of_single {
         let frame_times = (0..(thumbnail_grid_tiles_per_side * thumbnail_grid_tiles_per_side))
