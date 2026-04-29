@@ -1,0 +1,13 @@
+[Desktop Entry]
+Categories=System;FileTools
+Exec=/home/speedy/Projects/czkawka/czkawka_web/webgui.sh
+Icon=io.github.qarmin.czkawka-web
+StartupWMClass=czkawka_web
+Terminal=true
+TryExec=/home/speedy/Projects/czkawka/czkawka_web/webgui.sh
+Type=Application
+
+Name=Czkawka Web GUI
+Comment=Web-based duplicate file finder - runs in terminal
+
+Keywords=web;duplicate;same;similar;cleaner;copy;copies;compare;files;server

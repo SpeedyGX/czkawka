@@ -50,7 +50,8 @@ async fn main() {
         .with_state(state);
 
     let port = std::env::var("CZKAWKA_PORT").ok().and_then(|p| p.parse::<u16>().ok()).unwrap_or(8095);
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    let host = std::env::var("CZKAWKA_ADDRESS").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let addr: SocketAddr = format!("{}:{}", host, port).parse().expect("Invalid CZKAWKA_ADDRESS or CZKAWKA_PORT");
     tracing::info!("Czkawka Web Server starting on http://{addr}");
 
     let listener = tokio::net::TcpListener::bind(addr).await.expect("Failed to bind to address");

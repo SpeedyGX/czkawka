@@ -243,9 +243,13 @@ runr-web:
 docker-web:
     docker build -t czkawka_web -f czkawka_web/Dockerfile .
 
-# Run the Docker image (maps port 8095).
+# Run the Docker image (maps port 8095, binds to 0.0.0.0).
 docker-run-web:
-    docker run -p 8095:8095 --rm czkawka_web
+    docker run -p 8095:8095 -e CZKAWKA_ADDRESS=0.0.0.0 --rm czkawka_web
+
+# Build and run czkawka_web via docker compose (from czkawka_web/ directory).
+compose-web:
+    cd czkawka_web && docker compose up --build
 
 ##################### BUILD #####################
 

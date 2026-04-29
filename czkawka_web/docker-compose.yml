@@ -1,0 +1,13 @@
+services:
+  czkawka-web:
+    build:
+      context: ..
+      dockerfile: czkawka_web/Dockerfile
+    image: czkawka_web
+    container_name: czkawka-web
+    ports:
+      - "8095:8095"
+    environment:
+      - CZKAWKA_ADDRESS=0.0.0.0
+      - CZKAWKA_PORT=8095
+    restart: unless-stopped
