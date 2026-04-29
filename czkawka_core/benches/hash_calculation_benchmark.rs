@@ -23,6 +23,7 @@ fn get_file_entry(size: u64) -> DuplicateEntry {
         modified_date: 0,
         size,
         hash: String::new(),
+        inode: 0,
     }
 }
 

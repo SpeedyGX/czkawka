@@ -455,6 +455,7 @@ mod tests {
             val_str: ModelRc::new(VecModel::from(val_str.iter().map(|s| SharedString::from(*s)).collect::<Vec<_>>())),
             val_int: ModelRc::new(VecModel::from(val_int.to_vec())),
             is_source: false,
+            is_hardlinked: false,
         }
     }
 
@@ -466,10 +467,11 @@ mod tests {
         }
     }
 
-    fn dup_item(size_bytes: u64, name: &str, path: &str, mod_ts: u64) -> SingleMainListModel {
+    fn dup_item(inode: u64, size_bytes: u64, name: &str, path: &str, mod_ts: u64) -> SingleMainListModel {
         let size_str = format!("{size_bytes} B");
         let mod_str = "2020-01-01 00:00:00".to_string();
         let val_str: [SharedString; MAX_STR_DATA_DUPLICATE_FILES] = [
+            inode.to_string().into(),
             SharedString::from(size_str.as_str()),
             SharedString::from(name),
             SharedString::from(path),
@@ -477,7 +479,8 @@ mod tests {
         ];
         let (sz1, sz2) = split_u64_into_i32s(size_bytes);
         let (md1, md2) = split_u64_into_i32s(mod_ts);
-        let val_int: [i32; MAX_INT_DATA_DUPLICATE_FILES] = [md1, md2, sz1, sz2];
+        let (in1, in2) = split_u64_into_i32s(inode);
+        let val_int: [i32; MAX_INT_DATA_DUPLICATE_FILES] = [in1, in2, md1, md2, sz1, sz2];
         SingleMainListModel {
             checked: false,
             filled_header_row: false,
@@ -486,6 +489,7 @@ mod tests {
             val_str: ModelRc::new(VecModel::from(val_str.to_vec())),
             val_int: ModelRc::new(VecModel::from(val_int.to_vec())),
             is_source: false,
+            is_hardlinked: false,
         }
     }
 
@@ -767,8 +771,8 @@ mod tests {
 
     #[test]
     fn select_custom_columns_int_pair_size_filter() {
-        let small = dup_item(512 * 1024, "small.bin", "/tmp", 0);
-        let large = dup_item(3 * 1024 * 1024, "large.bin", "/tmp", 0);
+        let small = dup_item(0, 512 * 1024, "small.bin", "/tmp", 0);
+        let large = dup_item(0, 3 * 1024 * 1024, "large.bin", "/tmp", 0);
 
         let rows = vec![make_header(), small, large];
         let model = create_model_from_model_vec(&rows);

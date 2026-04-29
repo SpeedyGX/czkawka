@@ -782,7 +782,7 @@ mod tests {
         let dir = tempfile::Builder::new().tempdir()?;
         let dir_path = normalize_path(dir.path());
         let (src, hard, other_file) = create_files(&dir_path)?;
-        let secs = NOW.duration_since(SystemTime::UNIX_EPOCH).expect("Cannot fail calculating duration since epoch").as_secs();
+        let _secs = NOW.duration_since(SystemTime::UNIX_EPOCH).expect("Cannot fail calculating duration since epoch").as_secs();
 
         let mut common_data = CommonToolData::new(ToolType::SimilarImages);
         common_data.directories.set_included_paths([dir.path().to_owned()].to_vec());
@@ -938,7 +938,7 @@ mod tests {
         let dir = tempfile::Builder::new().tempdir()?;
         let dir_path = normalize_path(dir.path());
         let (src, _, other) = create_files(&dir_path)?;
-        let secs = NOW.duration_since(SystemTime::UNIX_EPOCH).expect("Cannot fail calculating duration since epoch").as_secs();
+        let _secs = NOW.duration_since(SystemTime::UNIX_EPOCH).expect("Cannot fail calculating duration since epoch").as_secs();
 
         let mut common_data = CommonToolData::new(ToolType::SimilarImages);
         common_data.directories.set_included_paths([dir.path().to_owned()].to_vec());
@@ -977,7 +977,7 @@ mod tests {
         let dir = tempfile::Builder::new().tempdir()?;
         let dir_path = normalize_path(&dir.path());
         let (src, hard, other) = create_files(&dir_path)?;
-        let secs = NOW.duration_since(SystemTime::UNIX_EPOCH).expect("Cannot fail duration from epoch").as_secs();
+        let _secs = NOW.duration_since(SystemTime::UNIX_EPOCH).expect("Cannot fail duration from epoch").as_secs();
 
         let mut common_data = CommonToolData::new(ToolType::SimilarImages);
         common_data.directories.set_included_paths([dir_path.to_owned()].to_vec());

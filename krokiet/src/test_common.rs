@@ -7,6 +7,7 @@ pub(crate) fn get_main_list_model() -> SingleMainListModel {
         header_row: false,
         selected_row: false,
         is_source: false,
+        is_hardlinked: false,
         val_int: Default::default(),
         val_str: Default::default(),
     }
