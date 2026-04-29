@@ -692,16 +692,19 @@ pub(crate) fn get_modified_time(metadata: &Metadata, warnings: &mut Vec<String>,
     }
 }
 
+#[allow(dead_code)]
 #[cfg(target_family = "windows")]
 pub(crate) fn inode(_fe: &FileEntry) -> Option<u64> {
     None
 }
 
+#[allow(dead_code)]
 #[cfg(target_family = "unix")]
 pub(crate) fn inode(fe: &FileEntry) -> Option<u64> {
     if let Ok(meta) = fs::metadata(&fe.path) { Some(meta.ino()) } else { None }
 }
 
+#[allow(dead_code)]
 pub(crate) fn take_1_per_inode((k, mut v): (Option<u64>, Vec<FileEntry>)) -> Vec<FileEntry> {
     if k.is_some() {
         v.drain(1..);

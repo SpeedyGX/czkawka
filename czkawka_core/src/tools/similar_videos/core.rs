@@ -12,7 +12,7 @@ use vid_dup_finder_lib::{CreationOptions, Cropdetect, VideoHash, VideoHashBuilde
 
 use crate::common::cache::{CACHE_VIDEO_VERSION, load_and_split_cache_generalized_by_path, save_and_connect_cache_generalized_by_path};
 use crate::common::config_cache_path::get_config_cache_path;
-use crate::common::dir_traversal::{DirTraversalBuilder, DirTraversalResult, inode, take_1_per_inode};
+use crate::common::dir_traversal::{DirTraversalBuilder, DirTraversalResult};
 use crate::common::model::{ToolType, WorkContinueStatus};
 use crate::common::progress_data::{CurrentStage, ProgressData};
 use crate::common::progress_stop_handler::{check_if_stop_received, prepare_thread_handler_common};
@@ -37,7 +37,7 @@ impl SimilarVideos {
     #[fun_time(message = "check_for_similar_videos", level = "debug")]
     pub(crate) fn check_for_similar_videos(&mut self, stop_flag: &Arc<AtomicBool>, progress_sender: Option<&Sender<ProgressData>>) -> WorkContinueStatus {
         let result = DirTraversalBuilder::new()
-            .group_by(inode)
+            .group_by(|fe| fe.size)
             .stop_flag(stop_flag)
             .progress_sender(progress_sender)
             .common_data(&self.common_data)
@@ -58,15 +58,22 @@ impl SimilarVideos {
                 let hide_hard_links = self.get_hide_hard_links();
                 self.videos_to_check = grouped_file_entries
                     .into_par_iter()
-                    .map(|(inode, fes)| {
+                    .map(|(size_group, fes)| {
                         if check_if_stop_received(stop_flag) {
                             return None;
                         }
                         progress_handler.increase_items(1);
-                        Some((inode, fes))
+                        Some((size_group, fes))
                     })
                     .while_some()
-                    .flat_map(if hide_hard_links { |(_, fes)| fes } else { take_1_per_inode })
+                    .flat_map(|(_, fes)| {
+                        if hide_hard_links {
+                            let mut seen = std::collections::HashSet::new();
+                            fes.into_iter().filter(|fe| seen.insert(fe.inode)).collect::<Vec<_>>()
+                        } else {
+                            fes
+                        }
+                    })
                     .map(|fe| (fe.path.to_string_lossy().to_string(), fe.into_videos_entry()))
                     .collect();
 
