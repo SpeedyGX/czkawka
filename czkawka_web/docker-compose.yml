@@ -10,4 +10,13 @@ services:
     environment:
       - CZKAWKA_ADDRESS=0.0.0.0
       - CZKAWKA_PORT=8095
+      # Set PUID/PGID to match your host user's UID and GID
+      # (run `id -u` and `id -g` on the host to find yours).
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+    volumes:
+      # Mount directories you want to scan.
+      # Files must be readable by the container user (PUID/PGID).
+      - ./data:/data:rw
+      - ./scan_folder:/scan_folder:rw
     restart: unless-stopped

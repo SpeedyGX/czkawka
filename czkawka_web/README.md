@@ -110,3 +110,37 @@ czkawka_web/
     ├── app.js           # Frontend JS
     └── style.css        # Frontend CSS
 ```
+
+## Docker Compose
+
+A [`docker-compose.yml`](docker-compose.yml) is provided for building and running the web service with a single command.
+
+### Build
+
+```bash
+docker compose -f czkawka_web/docker-compose.yml build
+```
+
+### Run
+
+```bash
+docker compose -f czkawka_web/docker-compose.yml up
+```
+
+### Rebuild after changes
+
+```bash
+docker compose -f czkawka_web/docker-compose.yml build --no-cache
+```
+
+### Run in detached mode
+
+```bash
+docker compose -f czkawka_web/docker-compose.yml up -d
+```
+
+### Stop
+
+```bash
+docker compose -f czkawka_web/docker-compose.yml down
+```

@@ -2,3 +2,5 @@ target/
 .git/
 *.md
 .gitignore
+plans/
+.github/

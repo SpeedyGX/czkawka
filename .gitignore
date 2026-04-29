@@ -44,3 +44,5 @@ cedinia/docs
 uv.lock
 i18n
 keystore_pass
+/czkawka_web/data
+/czkawka_web/scan_folder
