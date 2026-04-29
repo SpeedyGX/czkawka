@@ -511,8 +511,7 @@ pub(crate) async fn scan_similar_images(
                 tool.set_included_paths(included);
                 tool.set_excluded_paths(excluded);
                 tool.set_recursive_search(req.recursive.unwrap_or(true));
-                // Keep hard-linked files in results (set to true keeps them visible)
-                tool.set_hide_hard_links(true);
+                tool.set_hide_hard_links(false);
 
                 if !stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
                     tool.search(&stop_flag, Some(&tx));
@@ -673,8 +672,7 @@ pub(crate) async fn scan_similar_videos(
                 tool.set_included_paths(included);
                 tool.set_excluded_paths(excluded);
                 tool.set_recursive_search(req.recursive.unwrap_or(true));
-                // Keep hard-linked files in results (set to true keeps them visible)
-                tool.set_hide_hard_links(true);
+                tool.set_hide_hard_links(false);
 
                 if !stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
                     tool.search(&stop_flag, Some(&tx));
