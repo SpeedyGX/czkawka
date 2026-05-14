@@ -156,8 +156,9 @@ fn prepare_data_model_similar_videos(fe: VideosEntry) -> (ModelRc<SharedString>,
     };
     let preview_path = fe.thumbnail_path.as_ref().map(|e| e.to_string_lossy().to_string()).unwrap_or_default();
     let duration = format_duration_opt(fe.duration);
-    let max_bits: u32 = 144; // Video perceptual hash is 144 bits
-    let pct = if max_bits > 0 { ((max_bits - fe.difference) * 100) / max_bits } else { 100 };
+    // vid_dup_finder_lib uses HASH_SIZE=10 → HASH_BITS = 10³ = 1000 bits
+    let max_bits: u32 = 1000;
+    let pct = if max_bits > 0 { ((max_bits.saturating_sub(fe.difference)) * 100) / max_bits } else { 100 };
     let similarity_str = format!("{} %", pct);
     let data_model_str_arr: [SharedString; MAX_STR_DATA_SIMILAR_VIDEOS] = [
         fe.inode.to_string().into(),
