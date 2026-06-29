@@ -143,7 +143,7 @@ MIME types supported: `.html`, `.js`, `.css`, `.svg`, `.png`. Unknown types get 
 
 ## 6. Scan Manager ([`src/scan_manager.rs`](../czkawka_web/src/scan_manager.rs:1))
 
-The [`ScanManager`](../czkawka_web/src/scan_manager.rs:38) is the central registry for all scan sessions. It holds a `Mutex<HashMap<String, ScanState>>` keyed by UUID v4 scan IDs.
+The [`ScanManager`](../czkawka_web/src/scan_manager.rs:39) is the central registry for all scan sessions. It holds a `Mutex<HashMap<String, ScanState>>` keyed by UUID v4 scan IDs.
 
 ### [`ScanState`](../czkawka_web/src/scan_manager.rs:19)
 | Field | Type | Description |
@@ -444,7 +444,7 @@ The table is rendered dynamically with:
 1. User clicks **"Set as source"** for one file per group → stored in `sourceMap`.
 2. For other files in the same group, a **"Hardlink to source"** button appears.
 3. Clicking it calls [`performHardlink()`](../czkawka_web/web/app.js:782) — POSTs to `/api/files/hardlink`.
-4. Alternatively, select multiple files and click **"Hardlink Selected"** (bulk operation via [`hardlinkSelected()`](../czkawka_web/web/app.js:820])).
+4. Alternatively, select multiple files and click **"Hardlink Selected"** (bulk operation via [`hardlinkSelected()`](../czkawka_web/web/app.js:820)).
 5. Successfully hardlinked paths are added to `linkedPaths` and the table re-renders with dimmed rows.
 
 ### 13.8 Delete Workflow
@@ -519,6 +519,8 @@ services:
     build:
       context: ..
       dockerfile: czkawka_web/Dockerfile
+    image: czkawka_web
+    container_name: czkawka-web
     ports:
       - "8095:8095"
     environment:
@@ -592,3 +594,55 @@ These tools are available in the desktop UIs (krokiet, czkawka_gui) and CLI.
 6. **Hardlink workflow** — set source files per group, hardlink duplicates to save space.
 7. **Docker support** — multi-stage build, privilege separation, ffmpeg for video features.
 8. **Local-only deployment** — no authentication, permissive CORS, designed for trusted networks.
+
+---
+
+## 18. Verification Notes
+
+*Verified against actual source code on 2026-06-29.*
+
+### Sources verified
+
+- [`czkawka_web/Cargo.toml`](../czkawka_web/Cargo.toml) — all 14 dependencies, versions, and features confirmed exact match.
+- [`czkawka_web/Dockerfile`](../czkawka_web/Dockerfile) — multi-stage build (rust:alpine → alpine:3.21), dependencies (`musl-dev`, `shadow`, `ffmpeg`), entrypoint script, exposed port (8095) all confirmed.
+- [`czkawka_web/docker-compose.yml`](../czkawka_web/docker-compose.yml) — all keys confirmed; previously missing `image` and `container_name` lines added.
+- [`czkawka_web/src/main.rs`](../czkawka_web/src/main.rs) — all 12 routes, HTTP methods, handlers, terminal fallback list, env vars (`CZKAWKA_PORT`, `CZKAWKA_ADDRESS`) confirmed exact match.
+- [`czkawka_web/src/embedded.rs`](../czkawka_web/src/embedded.rs) — `rust-embed` setup, `serve_static` function, MIME type mapping confirmed.
+- [`czkawka_web/src/scan_manager.rs`](../czkawka_web/src/scan_manager.rs) — `ScanStatus` enum, `ScanState` struct, `ScanManager` struct, all four methods confirmed. `ScanManager` struct line corrected from 38 → 39.
+- [`czkawka_web/src/ws.rs`](../czkawka_web/src/ws.rs) — WebSocket handler, `handle_socket` with `tokio::select!` three-way multiplex, progress/completion message formats all confirmed.
+- [`czkawka_web/src/api/scan.rs`](../czkawka_web/src/api/scan.rs) — all four scan endpoints, three request structs (`ScalableScanRequest`, `SimilarImagesRequest`, `SimilarVideosRequest`), default values, three serializers, `inode_of` helper all confirmed.
+- [`czkawka_web/src/api/results.rs`](../czkawka_web/src/api/results.rs) — endpoint, response format confirmed.
+- [`czkawka_web/src/api/browse.rs`](../czkawka_web/src/api/browse.rs) — endpoint, security check, sorting, parent navigation confirmed.
+- [`czkawka_web/src/api/preview.rs`](../czkawka_web/src/api/preview.rs) — image preview (Lanczos3 resize, default 300×300) and video preview endpoints confirmed.
+- [`czkawka_web/src/api/actions.rs`](../czkawka_web/src/api/actions.rs) — delete and hardlink endpoints, request/response types confirmed.
+- [`czkawka_web/web/index.html`](../czkawka_web/web/index.html) — HTML structure (header, settings panel, results panel, folder browser modal, status bar) confirmed.
+- [`czkawka_web/web/app.js`](../czkawka_web/web/app.js) — 1107 lines confirmed; all line references for functions (`startScan`:203, `connectWebSocket`:277, `fetchResults`:343, `detectHardlinksInResults`:318, `renderResults`:421, `performHardlink`:782, `hardlinkSelected`:820, `deleteSelected`:900, `openFolderBrowser`:964, `escHtml`:958), TOOLS array, STATE object, pagination sizes all confirmed.
+- [`czkawka_web/web/app.js.bak`](../czkawka_web/web/app.js.bak) — 1370 lines confirmed; documented features (Sortable Columns, Gallery View, Recent Directories, `escAttr()`, `_selection` Set) verified present.
+- [`czkawka_web/web/style.css`](../czkawka_web/web/style.css) — dark theme colors (`#1a1a2e`, `#16213e`, `#e94560`, `#0f3460`, `#eee`/`#8892b0`/`#a8b2d1`) all confirmed.
+
+### Corrections made
+
+| # | Location | Issue | Fix |
+|---|----------|-------|-----|
+| 1 | Section 6, line 146 | `ScanManager` struct line reference was 38 (comment line); struct definition is at line 39 | Changed `scan_manager.rs:38` → `scan_manager.rs:39` |
+| 2 | Section 13.7, line 447 | Typo: `app.js:820]` had an extra `]` instead of `)` | Changed `app.js:820]` → `app.js:820)` |
+| 3 | Section 14.2, lines 516–533 | docker-compose.yml snippet was missing `image: czkawka_web` and `container_name: czkawka-web` lines present in the actual file | Added both missing lines |
+
+### Confirmed accurate (no changes needed)
+
+- All Cargo.toml dependency versions and features
+- Dockerfile multi-stage build description and runtime dependencies
+- All 12 HTTP routes with correct methods, paths, and handlers
+- All scan request struct fields, types, and defaults
+- WebSocket protocol message format
+- Results endpoint response format
+- File browser endpoint, security check, and sorting
+- Image/video preview endpoints
+- File actions (delete/hardlink) endpoints and response types
+- Frontend HTML structure, STATE object fields, TOOLS array, scan flow
+- Results table rendering, pagination, hardlink and delete workflows
+- Folder browser modal implementation
+- Dark theme color values
+- app.js.bak documented features
+- Security considerations table
+- Tools NOT available via web listing

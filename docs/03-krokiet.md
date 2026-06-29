@@ -77,7 +77,7 @@ Compiles the main Slint file using `slint_build`. If the `SLINT_STYLE` env var i
 15. **`set_initial_scroll_list_data_indexes(&app)`** — sets column index metadata
 16. **`set_initial_settings_to_gui(...)`** — applies loaded settings to Slint globals
 17. **`update_available_hardware_encoders(&app)`** — background probes HW encoders
-18. **Wire all callbacks** — ~20 `connect_*` functions
+18. **Wire all callbacks** — ~27 `connect_*` functions
 19. **`clear_outdated_video_thumbnails()`** — background cleanup of old thumbnails
 20. **`app.invoke_initialize_popup_sizes()`** — pre-measures popups to avoid layout shifts
 21. **`app.run()`** — starts the Slint event loop
@@ -156,7 +156,7 @@ Defines **enums** and **max constants** for each tool's str/int column layout. S
 | Temporary Files | [`StrDataTemporaryFiles`](../krokiet/src/common.rs:106) | [`IntDataTemporaryFiles`](../krokiet/src/common.rs:96) |
 | Similar Images | [`StrDataSimilarImages`](../krokiet/src/common.rs:132) | [`IntDataSimilarImages`](../krokiet/src/common.rs:116) |
 | Similar Videos | [`StrDataSimilarVideos`](../krokiet/src/common.rs:164) | [`IntDataSimilarVideos`](../krokiet/src/common.rs:146) |
-| Similar Music | [`StrDataSimilarMusic`](../krokiet/src/common.rs:196) | [`IntDataSimilarMusic`](../krokiet/src/common.rs:183) |
+| Similar Music | [`StrDataSimilarMusic`](../krokiet/src/common.rs:195) | [`IntDataSimilarMusic`](../krokiet/src/common.rs:183) |
 | Invalid Symlinks | [`StrDataInvalidSymlinks`](../krokiet/src/common.rs:220) | [`IntDataInvalidSymlinks`](../krokiet/src/common.rs:212) |
 | Broken Files | [`StrDataBrokenFiles`](../krokiet/src/common.rs:242) | [`IntDataBrokenFiles`](../krokiet/src/common.rs:232) |
 | Bad Extensions | [`StrDataBadExtensions`](../krokiet/src/common.rs:263) | [`IntDataBadExtensions`](../krokiet/src/common.rs:253) |
@@ -366,7 +366,7 @@ pub struct ScanData {
 
 **Purpose:** Translation switching.
 
-- Defines `LANGUAGE_LIST` with 28 languages
+- Defines `LANGUAGE_LIST` with 27 languages
 - `connect_translations()` — registers language change callback
 - `change_language()` — loads Fluent localizers and calls `translate_items()`
 - `translate_items()` — sets all `Translations` global properties (~460 lines of string assignments)
@@ -576,7 +576,7 @@ MainWindow (main_window.slint)
 │   ├── Progress       — scan progress bar (visible when scanning/processing)
 │   └── ActionButtons  — scan/stop/select/sort/delete/move/save/etc.
 ├── BottomPanel        — included/excluded directory paths
-└── Popup overlays (17 popups)
+└── Popup overlays (18 popups)
 ```
 
 ### Key Slint Files
@@ -632,7 +632,7 @@ MainWindow (main_window.slint)
 
 ## 18. Icons — [`krokiet/icons/`](../krokiet/icons)
 
-34 SVG icons plus PNG/ICO logo variants:
+33 SVG icons plus PNG/ICO logo variants:
 
 | Icon | Purpose |
 |---|---|
@@ -656,7 +656,7 @@ MainWindow (main_window.slint)
 | `krokiet_optimize.svg` | Video optimizer |
 | `krokiet_settings.svg` | Settings |
 | `krokiet_subsettings.svg` | Sub-settings |
-| `krokiet_compare*.svg` (6) | Image comparison tools |
+| `krokiet_compare*.svg` (8) | Image comparison tools |
 | `krokiet_manual_add.svg` | Manual path entry |
 
 ---
@@ -669,7 +669,7 @@ MainWindow (main_window.slint)
 
 ## 20. Translations — [`krokiet/i18n/`](../krokiet/i18n)
 
-28 language directories, each containing a `krokiet.ftl` file:
+27 language directories, each containing a `krokiet.ftl` file:
 
 `ar`, `bg`, `cs`, `de`, `el`, `en` (source), `es-ES`, `fa`, `fr`, `hi`, `id`, `it`, `ja`, `ko`, `nl`, `no`, `pl`, `pt-BR`, `pt-PT`, `ro`, `ru`, `sv-SE`, `tr`, `uk`, `vi`, `zh-CN`, `zh-TW`
 
@@ -724,3 +724,37 @@ MainWindow (main_window.slint)
 3. User confirms → `invoke_show_action_popup()` → action handler called
 4. Action handler uses [`ModelProcessor`](../krokiet/src/model_operations/model_processor.rs) to run the operation in background
 5. `ModelProcessor` converts model → processes with rayon → converts back → updates GUI
+
+
+---
+
+## Verification Notes
+
+*Verified against source code on 2026-06-29.*
+
+**Checked and confirmed accurate:**
+- Cargo.toml: version 11.0.1, slint 1.15.0, all dependency versions, feature flags (audio, 9 renderers, 3 image formats, xdg_portal_trash), default features (winit_femtovg, winit_software)
+- build.rs: SLINT_STYLE default "fluent-dark" logic correctly described
+- main.rs 22-step initialization flow: all steps verified, line order matches source
+- shared_models.rs: `SharedModels` struct with 14 tool `Option<>` fields, `new_shared()` returning `Arc<RwLock<Self>>`, `save_results()` and `get_use_reference_folders()` methods
+- common.rs: all 14 tool column enums (str + int pairs) and line numbers verified accurate (one exception noted below)
+- localizer_krokiet.rs: `flk!` macro, `LANGUAGE_LOADER_KROKIET`, `LazyLock<FluentLanguageLoader>`, `rust-embed` all correct
+- simpler_model.rs: `SimplerSingleMainListModel` struct, `ToSimplerVec`/`ToSlintModel` traits correctly described
+- active_tab_meta.rs: `TabMeta` tuple (str_path_idx, str_name_idx, int_date_idx, int_size_opt, is_header_mode), all line references verified accurate
+- connect_scan.rs: `ScanData` struct, `connect_scan_button()` at line 67 verified
+- connect_scan/ directory: 14 tool files, all tool names and group statuses correct
+- connect_compare.rs: image comparison flow correctly described
+- connect_show_confirmation.rs: `connect_show_confirmation()` at line 12 verified
+- connect_progress_receiver.rs: `connect_progress_gathering()` at line 11 verified
+- All .slint files (39 total = 21 main + 18 popup) verified present
+- i18n directories: 27 language codes listed correctly in document
+- connect_scan/mod.rs: 14 sub-module declarations match 14 files
+
+**Corrections made (see above):**
+- `StrDataSimilarMusic` enum line number: 196 → 195
+- Connect function count: ~20 → ~27
+- Popup count in layout hierarchy: 17 → 18
+- SVG icon count: 34 → 33
+- Compare SVG icons: 6 → 8
+- Language directory count: 28 → 27
+- LANGUAGE_LIST count: 28 → 27

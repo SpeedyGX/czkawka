@@ -72,7 +72,7 @@ with a shared core library and multiple frontends.
 |----------|--------|
 | [`01-top-level-structure.md`](01-top-level-structure.md) | Workspace root — `Cargo.toml` profiles & lints, `AGENTS.md` guidelines, `.rustfmt.toml`, `clippy.toml`, `justfile` commands, CI/CD pipelines (Linux/Windows/macOS/Android), `.cargo/config.toml`, `data/` desktop files, `instructions/` user docs, `plans/` implementation plans, top-level files |
 | [`02-czkawka-core.md`](02-czkawka-core.md) | Shared scanning engine — every tool's algorithm in detail, common infrastructure (directory traversal, caching, progress reporting, image/video/audio processing), 14 tools, benchmarks, test resources, i18n |
-| [`03-krokiet.md`](03-krokiet.md) | Primary Slint desktop GUI — initialization flow, all `connect_*.rs` callback handlers, 14 scan tool implementations, model layer (`SimplerSingleMainListModel`), selection logic, file actions (delete/rename/move/hardlink/symlink/clean EXIF/optimize video), settings system, UI structure (22 Slint files, 18 popup files), icons, translations |
+| [`03-krokiet.md`](03-krokiet.md) | Primary Slint desktop GUI — initialization flow, all `connect_*.rs` callback handlers, 14 scan tool implementations, model layer (`SimplerSingleMainListModel`), selection logic, file actions (delete/rename/move/hardlink/symlink/clean EXIF/optimize video), settings system, UI structure (21 Slint files, 18 popup files), icons, translations |
 | [`04-cedinia.md`](04-cedinia.md) | Android/mobile Slint GUI — entry points (Android `android_main` + desktop `run_app`), JNI file picker bridge, DEX assembly at build time, scan runner architecture, thumbnailing system, notifications (Android + desktop), volume detection, Slint UI (16 files), key differences from Krokiet |
 | [`05-czkawka-cli.md`](05-czkawka-cli.md) | CLI wrapper — `clap` argument definitions for all 14 subcommands, execution model (two-thread pattern), progress bar rendering with `indicatif`, output formats (text, compact JSON, pretty JSON), all value parsers and validators |
 | [`06-czkawka-gui.md`](06-czkawka-gui.md) | Legacy GTK 4 GUI — architecture (23 callback modules), UI loading from Cambalache XML, ListStore column layouts for 11 tools, SVG rendering pipeline, Windows taskbar progress, GTK widget traits |
@@ -99,7 +99,7 @@ with a shared core library and multiple frontends.
     ┌──────────────┐  ┌──────────────┐ ┌──────────┐  ┌──────────────┐  ┌──────────────┐
     │   krokiet    │  │   cedinia    │ │ czkawka_ │  │ czkawka_gui  │  │ czkawka_cli  │
     │  (Slint GUI) │  │ (Android GUI)│ │   web    │  │ (GTK4, maint)│  │    (CLI)     │
-    │  ~22 .slint  │  │  ~16 .slint  │ │ axum +   │  │ XML .ui      │  │ clap +       │
+    │  ~21 .slint  │  │  ~16 .slint  │ │ axum +   │  │ XML .ui      │  │ clap +       │
     │  files       │  │  files       │ │ vanilla  │  │ GTK4-rs      │  │ indicatif    │
     │  14 tools    │  │  11 tools    │ │ JS       │  │ 11 tools     │  │ 14 tools     │
     │  GPL-3.0     │  │  GPL-3.0     │ │ 3 tools  │  │ MIT          │  │ MIT          │
@@ -271,7 +271,7 @@ overwritten on the next `just unpack_translations` run.
 | Broken Files | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | Bad Extensions | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | Bad Names | ✅ | ✅ | ✅ | ✅ | ❌² | ❌ |
-| Invalid Symlinks | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Invalid Symlinks | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
 | EXIF Remover | ✅ | ✅ | ✅ | ✅ | ❌² | ❌ |
 | Video Optimizer | ✅ | ✅ | ❌¹ | ✅ | ❌² | ❌ |
 
@@ -522,3 +522,48 @@ Nightly releases are produced from the `master` branch using `softprops/action-g
 ---
 
 *For complete details on any topic, follow the links to the appropriate sub-document above.*
+
+---
+
+## 12. Verification Notes
+
+*Verification performed: 2026-06-29 against verified sub-documents (01, 02, 03, 04, 07) and source code.*
+
+### What was checked
+
+| Area | Sources Verified | Result |
+|---|---|---|
+| Tool comparison matrix (14 tools) | [`czkawka_core/src/tools/mod.rs`](../czkawka_core/src/tools/mod.rs), [`krokiet/src/connect_scan/`](../krokiet/src/connect_scan/), [`czkawka_web/src/api/scan.rs`](../czkawka_web/src/api/scan.rs), [`docs/04-cedinia.md`](04-cedinia.md#6-scan-tool-implementations--srcscannersrs) | All tool counts match source. One correction made (see below). |
+| File action matrix | [`krokiet/src/file_actions/`](../krokiet/src/file_actions/), [`czkawka_web/src/api/actions.rs`](../czkawka_web/src/api/actions.rs) | All action flags confirmed correct. |
+| Technology stack versions | [`krokiet/Cargo.toml`](../krokiet/Cargo.toml), [`czkawka_web/Cargo.toml`](../czkawka_web/Cargo.toml), [`czkawka_gui/Cargo.toml`](../czkawka_gui/Cargo.toml) | Slint 1.15.0, axum 0.8, GTK4 0.11.0 (v4_6), tokio 1 (full) — all confirmed. |
+| Development workflow | [`justfile`](../justfile), [`.github/workflows/`](../.github/workflows/) | All `just` commands referenced exist. All 5 CI workflow files match (linux, windows, mac, android, quality). |
+| Build profiles | [`docs/01-top-level-structure.md`](01-top-level-structure.md) | All 5 listed profiles match. |
+| Architecture diagram tool counts | Sub-documents 02, 03, 04, 07 | Krokiet 14, Cedinia 11, CLI 14, GTK 11, Web 3 — all correct. |
+| Slint file counts | [`krokiet/ui/`](../krokiet/ui/) listing | 21 main + 18 popup = 39 total. One correction made (see below). |
+| Krokiet icons | [`krokiet/icons/`](../krokiet/icons/) listing | 33 SVG icons — matches sub-doc 03. |
+| Krokiet i18n | [`krokiet/i18n/`](../krokiet/i18n/) | 27 language directories — matches sub-doc 03. |
+| czkawka_web scan endpoints | [`czkawka_web/src/api/scan.rs`](../czkawka_web/src/api/scan.rs) | 5 handlers (duplicates, hardlink, similar-images, similar-videos, stop) — matches sub-doc 07. |
+| All relative links | Sub-document markdown files | All 9 sub-document links resolve correctly. |
+
+### Corrections made
+
+| # | Location | Issue | Fix |
+|---|----------|-------|-----|
+| 1 | Quick-nav table, krokiet row (line 75) | Said "22 Slint files" — the verified sub-doc 03-krokiet and the actual [`krokiet/ui/`](../krokiet/ui/) directory listing both confirm 21 main Slint files (not 22). | Changed "22 Slint files" → "21 Slint files". |
+| 2 | Architecture diagram, krokiet box (line 102) | Said "~22 .slint files" — same root cause as #1. | Changed "~22 .slint" → "~21 .slint". |
+| 3 | Tool comparison matrix, Invalid Symlinks row (line 274) | Cedinia was marked ✅ for Invalid Symlinks, but the verified sub-doc [`04-cedinia.md`](04-cedinia.md) section 6 lists only 11 scanners and `invalid_symlinks` is not among them. Cedinia excludes `similar_videos`, `video_optimizer`, and `invalid_symlinks` — 11 tools total. | Changed cedinia column from ✅ → ❌. |
+
+### Confirmed accurate (no changes needed)
+
+- All 14 tool names in the comparison matrix match [`czkawka_core/src/tools/mod.rs`](../czkawka_core/src/tools/mod.rs).
+- Krokiet has all 14 tools (14 files in [`krokiet/src/connect_scan/`](../krokiet/src/connect_scan/)).
+- czkawka_web has 3 distinct tools (Duplicates, SimilarImages, SimilarVideos — hardlink is a DuplicateFinder mode, not a separate tool).
+- File action matrix: krokiet has all 8 actions (7 Rust files in [`krokiet/src/file_actions/`](../krokiet/src/file_actions/)), czkawka_web has delete + hardlink only.
+- All technology version numbers (Slint 1.15.0, axum 0.8, GTK4 0.11.0, etc.) match their respective Cargo.toml files.
+- All 5 CI/CD workflow file names in section 9.7 match the actual [`.github/workflows/`](../.github/workflows/) directory.
+- Architecture diagram tool counts: 14 (krokiet), 11 (cedinia), 14 (CLI), 11 (GTK), 3 (web) — all correct.
+- The Data Flow and Two Scanning Approaches sections accurately reflect `czkawka_core` architecture.
+- Key Design Decisions section matches [`AGENTS.md`](../AGENTS.md).
+- All dependency tables (core scanning, frontend-specific, feature flags) cross-reference correctly with crate Cargo.toml files.
+- All links in "Related Documentation" section resolve to existing files.
+- Development Workflow commands all exist in [`justfile`](../justfile).

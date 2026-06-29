@@ -232,7 +232,7 @@ pub mod video_utils;
 - `DEFAULT_WORKER_THREAD_SIZE`: 4 MB — worker thread stack size
 - `VIDEO_RESOLUTION_LIMIT`: 16384 — max video dimension (prevents overflow in GUI)
 - Extension lists:
-  - `RAW_IMAGE_EXTENSIONS` — 22 raw formats (CR2, NEF, ARW, etc.)
+  - `RAW_IMAGE_EXTENSIONS` — 23 raw formats (CR2, NEF, ARW, etc.)
   - `IMAGE_RS_EXTENSIONS` — Standard image formats (JPEG, PNG, WebP, etc.; includes AVIF with `libavif` feature, always includes JXL)
   - `IMAGE_RS_SIMILAR_IMAGES_EXTENSIONS` — Subset for similar-images tool (excludes GIF, ICO)
   - `IMAGE_RS_BROKEN_FILES_EXTENSIONS` — Extended list for broken-files check
@@ -240,7 +240,7 @@ pub mod video_utils;
   - `ZIP_FILES_EXTENSIONS` — `["zip", "jar"]`
   - `PDF_FILES_EXTENSIONS` — `["pdf"]`
   - `AUDIO_FILES_EXTENSIONS` — 19 audio formats
-  - `VIDEO_FILES_EXTENSIONS` — 36 video formats covering popular, mobile, broadcast, professional, and raw codec files
+  - `VIDEO_FILES_EXTENSIONS` — 45 video formats covering popular, mobile, broadcast, professional, and raw codec files
   - `TEXT_FILES_EXTENSIONS` — 14 document extensions
   - `EXIF_FILES_EXTENSIONS` — Extensions supported by `little_exif` for EXIF operations
 
@@ -824,7 +824,7 @@ Located at [`czkawka_core/test_resources/`](czkawka_core/test_resources/):
 | `ja` | Japanese | `zh-CN` | Chinese (Simplified) |
 | | | `zh-TW` | Chinese (Traditional) |
 
-The English [`.ftl` file](czkawka_core/i18n/en/czkawka_core.ftl) defines ~110 translation keys covering:
+The English [`.ftl` file](czkawka_core/i18n/en/czkawka_core.ftl) defines 100 translation keys covering:
 - Similarity labels (Original, Very High, High, Medium, Small, Very Small, Minimal)
 - Error messages (cannot open dir, cannot read metadata, etc.)
 - Path validation warnings
@@ -835,3 +835,41 @@ The English [`.ftl` file](czkawka_core/i18n/en/czkawka_core.ftl) defines ~110 tr
 - Progress stage labels
 
 **Important:** Only the English file is edited directly. Other languages are managed via Crowdin and overwritten on sync.
+
+---
+
+## Verification Notes
+
+*Verification performed: 2026-06-29 against commit-era source code.*
+
+### What was checked
+
+| Area | Files Verified | Result |
+|---|---|---|
+| Cargo.toml dependencies | `czkawka_core/Cargo.toml` | All listed versions match. Several dependencies (`tempfile`, `bitflags`, `humansize`, `filetime`, `itertools`, `i18n-embed-fl`, `rust-embed`, `once_cell`, `dunce`, `os_info`, `log`, `handsome_logger`, `static_assertions`, `file-rotate`, `open`, `log-panics`, `deunicode`, `rand`, `glibc_musl_version`) are not in the "Key Dependencies" table but this is by design — the table covers the most visible/externally-facing crates. |
+| lib.rs public API | `czkawka_core/src/lib.rs` | `TOOLS_NUMBER = 14`, four public modules, `re_exported` module — all match. |
+| tools/mod.rs | `czkawka_core/src/tools/mod.rs` | All 14 tools listed in doc match actual module declarations. |
+| CommonToolData fields | `czkawka_core/src/common/tool_data.rs` | All 17 fields documented correctly (names and descriptions). |
+| Traits | `czkawka_core/src/common/traits.rs` | `DebugPrint`, `PrintResults`, `DeletingItems`, `FixingItems`, `ResultEntry`, `Search`, `AllTraits` — all match. |
+| DirTraversalBuilder | `czkawka_core/src/common/dir_traversal.rs` | Builder pattern, algorithm, key helpers — all match. |
+| Cache system | `czkawka_core/src/common/cache.rs`, `cleaning.rs` | All 6 cache version constants match. Memory limit 8 GB. 9 CacheType variants recognized. |
+| Image processing | `czkawka_core/src/common/image.rs` | `get_dynamic_image_from_path`, EXIF rotation, resize — all match. `MAXIMUM_IMAGE_PIXELS = 2_000_000_000` (doc says "2 billion pixels") — correct. |
+| ProgressData | `czkawka_core/src/common/progress_data.rs` | 40 `CurrentStage` variants (doc says "30+") — correct. 9 fields in `ProgressData` struct — matches. |
+| Duplicate finder | `czkawka_core/src/tools/duplicate/core.rs`, `mod.rs` | Multi-pass algorithm, `PREHASHING_BUFFER_SIZE` (4 KB), `THREAD_BUFFER_SIZE` (2 MB) — all match. |
+| Similar images | `czkawka_core/src/tools/similar_images/core.rs` | Perceptual hashing, BK-tree, `connect_results_simplified`, chunked comparison — all match. |
+| Similar videos | `czkawka_core/src/tools/similar_videos/core.rs` | `vid_dup_finder_lib` usage with `VideoHashBuilder`, tolerance mapping — matches. |
+| Same music | `czkawka_core/src/tools/same_music/core.rs` | Two-mode (AudioTags + AudioContent), `lofty` for tags, `symphonia` + `rusty_chromaprint` for fingerprinting — matches. |
+| Broken files | `czkawka_core/src/tools/broken_files/mod.rs`, `core.rs` | 6 `CheckedTypesSingle` variants (Image, Archive ZIP, Audio, PDF, VideoFfprobe, VideoFfmpeg) — matches doc. |
+| Audio checker | `czkawka_core/src/helpers/audio_checker.rs` | Uses `symphonia` to probe, find track, create decoder, decode all packets — matches doc. |
+| FFprobe helper | `czkawka_core/src/helpers/ffprobe.rs` | Local copy of `ffprobe-rs`, `FfProbe` with `streams: Vec<Stream>` and `format: Format` — matches doc. |
+| i18n key count | `czkawka_core/i18n/en/czkawka_core.ftl` | **Fixed: 100 keys** (was incorrectly stated as "~110"). |
+| Extension constant counts | `czkawka_core/src/common/consts.rs` | **Fixed: `RAW_IMAGE_EXTENSIONS` = 23** (was "22"), **`VIDEO_FILES_EXTENSIONS` = 45** (was "36"). `AUDIO_FILES_EXTENSIONS` = 19 (correct), `TEXT_FILES_EXTENSIONS` = 14 (correct). |
+| Common modules count | `czkawka_core/src/common/mod.rs` | 18 sub-modules — matches doc. |
+
+### Corrections made
+
+1. **`RAW_IMAGE_EXTENSIONS` count**: Changed from "22 raw formats" to **"23 raw formats"** (the actual array has 23 entries: `ari`, `cr3`, `cr2`, `crw`, `erf`, `raf`, `3fr`, `kdc`, `dcs`, `dcr`, `iiq`, `mos`, `mef`, `mrw`, `nef`, `nrw`, `orf`, `rw2`, `pef`, `srw`, `arw`, `srf`, `sr2`).
+
+2. **`VIDEO_FILES_EXTENSIONS` count**: Changed from "36 video formats" to **"45 video formats"** (the actual array has 45 entries across 8 groups: Popular, MPEG/broadcast, Mobile/legacy, Apple/ISO BMFF, Streaming/recording, Professional, Raw/uncompressed, Older/games).
+
+3. **i18n translation key count**: Changed from "~110 translation keys" to **"100 translation keys"** (exact count of the English `.ftl` file).
