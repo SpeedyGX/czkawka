@@ -7,17 +7,16 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 #[cfg(target_family = "unix")]
-use std::fs;
+use std::os::unix::fs::MetadataExt;
 use std::fs::File;
 use std::hash::Hasher;
 use std::io::prelude::*;
-#[cfg(target_family = "unix")]
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
+#[cfg(target_family = "windows")]
 use indexmap::IndexSet;
 use serde::{Deserialize, Serialize};
 use static_assertions::const_assert;
@@ -157,17 +156,17 @@ fn filter_hard_links(vec_file_entry: Vec<FileEntry>) -> Vec<FileEntry> {
 
 #[cfg(target_family = "unix")]
 fn filter_hard_links(vec_file_entry: Vec<FileEntry>) -> Vec<FileEntry> {
-    let mut inodes: IndexSet<u64> = IndexSet::with_capacity(vec_file_entry.len());
-    let mut identical: Vec<FileEntry> = Vec::with_capacity(vec_file_entry.len());
-    for f in vec_file_entry {
-        if let Ok(meta) = fs::metadata(&f.path)
-            && !inodes.insert(meta.ino())
-        {
-            continue;
-        }
-        identical.push(f);
-    }
-    identical
+    let mut seen = std::collections::HashSet::new();
+    vec_file_entry.into_iter().filter(|fe| {
+        let inode = if fe.inode != 0 {
+            fe.inode
+        } else if let Ok(meta) = std::fs::metadata(&fe.path) {
+            meta.ino()
+        } else {
+            return true;
+        };
+        seen.insert(inode)
+    }).collect()
 }
 
 pub trait MyHasher {
@@ -316,6 +315,7 @@ impl MyHasher for Xxh3 {
 
 #[cfg(test)]
 mod tests2 {
+    use std::fs;
     use std::fs::File;
     use std::io;
 

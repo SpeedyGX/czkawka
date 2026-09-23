@@ -9,6 +9,7 @@ use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use rusty_chromaprint::Configuration;
 use serde::{Deserialize, Serialize};
 use vid_dup_finder_lib::{Cropdetect, VideoHash};
 
@@ -27,6 +28,14 @@ pub const ALLOWED_VID_HASH_DURATION: RangeInclusive<u32> = 2..=60;
 pub const DEFAULT_VID_HASH_DURATION: u32 = 10;
 
 pub const DEFAULT_VIDEO_PERCENTAGE_FOR_THUMBNAIL: u8 = 10;
+
+// Audio fingerprint mode constants
+pub const ALLOWED_AUDIO_SIMILARITY_PERCENT: RangeInclusive<f64> = 0.0..=100.0;
+pub const DEFAULT_AUDIO_SIMILARITY_PERCENT: f64 = 80.0;
+pub const ALLOWED_AUDIO_LENGTH_RATIO: RangeInclusive<f64> = 0.0..=1.0;
+pub const DEFAULT_AUDIO_LENGTH_RATIO: f64 = 0.1;
+pub const DEFAULT_AUDIO_MIN_DURATION_SECONDS: u32 = 10;
+pub const DEFAULT_AUDIO_MAXIMUM_DIFFERENCE: f64 = 3.0;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VideosEntry {
@@ -65,6 +74,29 @@ impl ResultEntry for VideosEntry {
     }
 }
 
+/// Minimal cache entry used to persist audio fingerprint data for video files.
+/// Kept separate from `VideosEntry` so the visual-hash cache format is not affected.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct VideoAudioEntry {
+    pub path: PathBuf,
+    pub size: u64,
+    pub modified_date: u64,
+    pub fingerprint: Vec<u32>,
+    pub audio_duration_seconds: u32,
+}
+
+impl ResultEntry for VideoAudioEntry {
+    fn get_path(&self) -> &Path {
+        &self.path
+    }
+    fn get_modified_date(&self) -> u64 {
+        self.modified_date
+    }
+    fn get_size(&self) -> u64 {
+        self.size
+    }
+}
+
 impl FileEntry {
     fn into_videos_entry(self) -> VideosEntry {
         VideosEntry {
@@ -85,6 +117,16 @@ impl FileEntry {
             thumbnail_path: None,
         }
     }
+
+    pub(crate) fn into_video_audio_entry(self) -> VideoAudioEntry {
+        VideoAudioEntry {
+            size: self.size,
+            path: self.path,
+            modified_date: self.modified_date,
+            fingerprint: Vec::new(),
+            audio_duration_seconds: 0,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -99,6 +141,12 @@ pub struct SimilarVideosParameters {
     pub thumbnail_video_percentage_from_start: u8,
     pub generate_thumbnail_grid_instead_of_single: bool,
     pub thumbnail_grid_tiles_per_side: u8,
+
+    pub check_audio_content: bool,
+    pub audio_similarity_percent: f64,
+    pub maximum_difference: f64,
+    pub audio_length_ratio: f64,
+    pub audio_min_duration_seconds: u32,
 }
 
 pub fn crop_detect_from_str_opt(s: &str) -> Option<Cropdetect> {
@@ -122,10 +170,17 @@ impl SimilarVideosParameters {
         thumbnail_video_percentage_from_start: u8,
         generate_thumbnail_grid_instead_of_single: bool,
         thumbnail_grid_tiles_per_side: u8,
+        check_audio_content: bool,
+        audio_similarity_percent: f64,
+        maximum_difference: f64,
+        audio_length_ratio: f64,
+        audio_min_duration_seconds: u32,
     ) -> Self {
         assert!((0..=MAX_TOLERANCE).contains(&tolerance));
         assert!(ALLOWED_SKIP_FORWARD_AMOUNT.contains(&skip_forward_amount));
         assert!(ALLOWED_VID_HASH_DURATION.contains(&duration));
+        assert!(ALLOWED_AUDIO_SIMILARITY_PERCENT.contains(&audio_similarity_percent));
+        assert!(ALLOWED_AUDIO_LENGTH_RATIO.contains(&audio_length_ratio));
         Self {
             tolerance,
             exclude_videos_with_same_size,
@@ -137,6 +192,11 @@ impl SimilarVideosParameters {
             thumbnail_video_percentage_from_start,
             generate_thumbnail_grid_instead_of_single,
             thumbnail_grid_tiles_per_side,
+            check_audio_content,
+            audio_similarity_percent,
+            maximum_difference,
+            audio_length_ratio,
+            audio_min_duration_seconds,
         }
     }
 }
@@ -148,7 +208,10 @@ pub struct SimilarVideos {
     similar_referenced_vectors: Vec<(VideosEntry, Vec<VideosEntry>)>,
     videos_hashes: BTreeMap<Vec<u8>, Vec<VideosEntry>>,
     videos_to_check: BTreeMap<String, VideosEntry>,
+    /// Entries for the audio fingerprint pass, keyed by path string.
+    audio_to_check: BTreeMap<String, VideoAudioEntry>,
     params: SimilarVideosParameters,
+    audio_config: Configuration,
 }
 
 #[derive(Default, Clone, Copy)]

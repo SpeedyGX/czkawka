@@ -1,5 +1,8 @@
 import { Settings } from "settings.slint";
 
+// NOTE: The light-theme colors below are rough approximations copied from the
+// dark-theme palette. A proper light theme would require a full second color
+// palette designed for light backgrounds, with logic to switch between them.
 export global ColorPalette {
     // Tabs at left side
     in-out property <color> tab_selected_color: Settings.dark_theme ? #353535 : #5e5e5e;

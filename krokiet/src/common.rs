@@ -1,7 +1,6 @@
-#![allow(dead_code)]
-
 use std::path::PathBuf;
 
+use czkawka_core::common::model::ToolType;
 use num_enum::TryFromPrimitive;
 use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 
@@ -355,12 +354,24 @@ pub(crate) enum SortIdx {
 }
 
 impl ActiveTab {
+    const fn has_source_column(self) -> bool {
+        matches!(self, Self::DuplicateFiles | Self::SimilarImages | Self::SimilarVideos | Self::SimilarMusic)
+    }
+
     pub(crate) fn get_str_int_sort_idx(self, str_idx: i32) -> SortIdx {
         // This not exists in enums, because selection is stored in other field
         if str_idx == 0 {
             return SortIdx::Selection;
         }
-        let str_idx = str_idx - 1; // Adjust for selection
+        // Source column (★) — non-data indicator, treat same as Selection
+        if str_idx == 1 && self.has_source_column() {
+            return SortIdx::Selection;
+        }
+        let str_idx = if self.has_source_column() {
+            str_idx - 2 // Adjust for selection + source
+        } else {
+            str_idx - 1 // Adjust for selection only
+        };
 
         match self {
             Self::EmptyFolders => match StrDataEmptyFolders::try_from(str_idx as u8).unwrap_or_else(|_| panic!("Invalid str idx {str_idx} for EmptyFolders")) {
@@ -470,6 +481,7 @@ impl ActiveTab {
             _ => panic!("Unable to get proper extension from this tab"),
         }
     }
+    #[allow(dead_code)]
     pub(crate) fn get_int_width_idx(self) -> usize {
         match self {
             Self::SimilarImages => IntDataSimilarImages::Width as usize,
@@ -478,6 +490,7 @@ impl ActiveTab {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn get_int_height_idx(self) -> usize {
         match self {
             Self::SimilarImages => IntDataSimilarImages::Height as usize,
@@ -503,6 +516,7 @@ impl ActiveTab {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn get_exif_tag_names_idx(self) -> usize {
         match self {
             Self::ExifRemover => StrDataExifRemover::ExifTags as usize,
@@ -527,6 +541,25 @@ impl ActiveTab {
         }
     }
 
+    pub(crate) fn from_tool_type(tool: ToolType) -> Self {
+        match tool {
+            ToolType::Duplicate => Self::DuplicateFiles,
+            ToolType::EmptyFolders => Self::EmptyFolders,
+            ToolType::EmptyFiles => Self::EmptyFiles,
+            ToolType::InvalidSymlinks => Self::InvalidSymlinks,
+            ToolType::BrokenFiles => Self::BrokenFiles,
+            ToolType::BadExtensions => Self::BadExtensions,
+            ToolType::BadNames => Self::BadNames,
+            ToolType::BigFile => Self::BigFiles,
+            ToolType::SameMusic => Self::SimilarMusic,
+            ToolType::SimilarImages => Self::SimilarImages,
+            ToolType::SimilarVideos => Self::SimilarVideos,
+            ToolType::TemporaryFiles => Self::TemporaryFiles,
+            ToolType::ExifRemover => Self::ExifRemover,
+            ToolType::VideoOptimizer => Self::VideoOptimizer,
+            ToolType::None => panic!("CLI tool parsing never produces ToolType::None"),
+        }
+    }
 }
 
 pub(crate) fn create_included_paths_model_from_pathbuf(items: &[PathBuf], referenced: &[PathBuf]) -> ModelRc<IncludedPathsModel> {

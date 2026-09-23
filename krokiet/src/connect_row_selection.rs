@@ -24,14 +24,6 @@ pub(crate) struct SelectionData {
 
 pub(crate) static TOOLS_SELECTION: LazyLock<RwLock<HashMap<ActiveTab, SelectionData>>> = LazyLock::new(|| RwLock::new(HashMap::new()));
 
-// pub(crate) fn get_selection_data(active_tab: ActiveTab) -> SelectionData {
-//     let lock = TOOLS_SELECTION.read().expect("Selection data is not initialized or is poisoned");
-//     let keys = lock.keys().cloned().collect::<Vec<_>>();
-//     lock.get(&active_tab)
-//         .unwrap_or_else(|| panic!("Failed to get selection data for tab {active_tab:?} - {keys:?}"))
-//         .clone()
-// }
-
 pub(crate) fn reset_selection(app: &MainWindow, active_tab: ActiveTab, reset_all_selection: bool) {
     if reset_all_selection {
         let mut lock = get_write_selection_lock();
@@ -72,6 +64,7 @@ pub(crate) fn recalculate_small_selection_if_needed(model: &ModelRc<SingleMainLi
     }
 
     selection.selected_rows = model.iter().enumerate().filter_map(|(idx, e)| if e.selected_row { Some(idx) } else { None }).collect();
+    selection.number_of_selected_rows = selection.selected_rows.len();
 }
 
 pub(crate) fn initialize_selection_struct() {
@@ -100,10 +93,6 @@ pub(crate) fn initialize_selection_struct() {
     }
 }
 
-// fn get_read_selection_lock() -> RwLockReadGuard<'static, HashMap<ActiveTab, SelectionData>> {
-//     let selection = TOOLS_SELECTION.get().expect("Selection data is not initialized");
-//     selection.read().expect("Failed to lock selection data")
-// }
 fn get_write_selection_lock() -> RwLockWriteGuard<'static, HashMap<ActiveTab, SelectionData>> {
     TOOLS_SELECTION.write().expect("Selection data is not initialized or is poisoned")
 }
@@ -114,15 +103,6 @@ impl Hash for ActiveTab {
     }
 }
 impl Eq for ActiveTab {}
-
-////////////////////
-////////////////////
-////////////////////
-////////////////////
-////////////////////
-////////////////////
-////////////////////
-////////////////////
 
 pub(crate) fn connect_row_selections(app: &MainWindow) {
     initialize_selection_struct();
@@ -353,7 +333,11 @@ pub(crate) mod checker {
         });
     }
 
-    // TODO - sad day for code readability, because slint not supports i64 - https://github.com/slint-ui/slint/issues/6589
+    // Slint does not support i64 (https://github.com/slint-ui/slint/issues/6589),
+    // forcing us to split each u64 counter across two i32 properties. This results
+    // in 14-arm match blocks below — one getter/setter pair per tool — that cannot
+    // be meaningfully collapsed without a macro because each tool uses its own
+    // generated property name. When Slint adds native i64 the duplication disappears.
     pub(crate) fn set_number_of_enabled_items(app: &MainWindow, active_tab: ActiveTab, items_number: u64) {
         let (it1, it2) = split_u64_into_i32s(items_number);
         match active_tab {
@@ -488,15 +472,6 @@ pub(crate) mod checker {
         connect_i32_into_u64(it1, it2)
     }
 }
-
-////////////////////
-////////////////////
-////////////////////
-////////////////////
-////////////////////
-////////////////////
-////////////////////
-////////////////////
 
 //
 // Deselect

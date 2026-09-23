@@ -24,8 +24,10 @@ use czkawka_core::tools::empty_folder::EmptyFolder;
 use czkawka_core::tools::exif_remover::{ExifRemover, ExifRemoverParameters, ExifTagsFixerParams};
 use czkawka_core::tools::invalid_symlinks::InvalidSymlinks;
 use czkawka_core::tools::same_music::{SameMusic, SameMusicParameters};
-use czkawka_core::tools::similar_images::{SimilarImages, SimilarImagesParameters};
-use czkawka_core::tools::similar_videos::{SimilarVideos, SimilarVideosParameters};
+use czkawka_core::tools::similar_images::{GeometricInvariance, SimilarImages, SimilarImagesParameters};
+use czkawka_core::tools::similar_videos::{
+    DEFAULT_AUDIO_LENGTH_RATIO, DEFAULT_AUDIO_MAXIMUM_DIFFERENCE, DEFAULT_AUDIO_MIN_DURATION_SECONDS, DEFAULT_AUDIO_SIMILARITY_PERCENT, SimilarVideos, SimilarVideosParameters,
+};
 use czkawka_core::tools::temporary::{Temporary, TemporaryParameters};
 use czkawka_core::tools::video_optimizer::{
     HardwareEncoder, VideoCropFixParams, VideoCropParams, VideoCroppingMechanism, VideoOptimizer, VideoOptimizerFixParams, VideoOptimizerParameters, VideoTranscodeFixParams,
@@ -243,6 +245,7 @@ fn similar_images(similar_images: SimilarImagesArgs, stop_flag: &Arc<AtomicBool>
         image_filter,
         ignore_same_size.ignore_same_size,
         ignore_same_resolution.ignore_same_resolution,
+        GeometricInvariance::Off,
     );
     let mut tool = SimilarImages::new(params);
 
@@ -353,6 +356,11 @@ fn similar_videos(similar_videos: SimilarVideosArgs, stop_flag: &Arc<AtomicBool>
         10,    // creating thumbnails in CLI, makes almost no sense
         false, // creating thumbnails in CLI, makes almost no sense
         2,     // creating thumbnails in CLI, makes almost no sense
+        false,
+        DEFAULT_AUDIO_SIMILARITY_PERCENT,
+        DEFAULT_AUDIO_MAXIMUM_DIFFERENCE,
+        DEFAULT_AUDIO_LENGTH_RATIO,
+        DEFAULT_AUDIO_MIN_DURATION_SECONDS,
     );
     let mut tool = SimilarVideos::new(params);
 

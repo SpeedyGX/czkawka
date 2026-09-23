@@ -17,8 +17,11 @@ use czkawka_core::tools::empty_files::EmptyFiles;
 use czkawka_core::tools::empty_folder::EmptyFolder;
 use czkawka_core::tools::invalid_symlinks::InvalidSymlinks;
 use czkawka_core::tools::same_music::{MusicSimilarity, SameMusic, SameMusicParameters};
-use czkawka_core::tools::similar_images::{SimilarImages, SimilarImagesParameters};
-use czkawka_core::tools::similar_videos::{DEFAULT_CROP_DETECT, DEFAULT_SKIP_FORWARD_AMOUNT, DEFAULT_VID_HASH_DURATION, SimilarVideos, SimilarVideosParameters};
+use czkawka_core::tools::similar_images::{GeometricInvariance, SimilarImages, SimilarImagesParameters};
+use czkawka_core::tools::similar_videos::{
+    DEFAULT_AUDIO_LENGTH_RATIO, DEFAULT_AUDIO_MAXIMUM_DIFFERENCE, DEFAULT_AUDIO_MIN_DURATION_SECONDS, DEFAULT_AUDIO_SIMILARITY_PERCENT, DEFAULT_CROP_DETECT, DEFAULT_SKIP_FORWARD_AMOUNT,
+    DEFAULT_VID_HASH_DURATION, SimilarVideos, SimilarVideosParameters,
+};
 use czkawka_core::tools::temporary::Temporary;
 use fun_time::fun_time;
 use gtk4::Grid;
@@ -602,7 +605,8 @@ fn similar_image_search(
                 hash_alg,
                 image_filter,
                 ignore_same_size,
-                false, // Not implemented in gtk gui
+                false,                    // Not implemented in gtk gui
+                GeometricInvariance::Off, // Not implemented in gtk gui
             );
             let mut tool = SimilarImages::new(params);
 
@@ -649,6 +653,11 @@ fn similar_video_search(
                 10,    // Not implemented in gtk gui
                 false, // Not implemented in gtk gui
                 2,     // Not implemented in gtk gui
+                false, // Not implemented in gtk gui
+                DEFAULT_AUDIO_SIMILARITY_PERCENT,
+                DEFAULT_AUDIO_MAXIMUM_DIFFERENCE,
+                DEFAULT_AUDIO_LENGTH_RATIO,
+                DEFAULT_AUDIO_MIN_DURATION_SECONDS,
             );
             let mut tool = SimilarVideos::new(params);
 

@@ -18,9 +18,10 @@ czkawka_core/src/
 ├── localizer_core.rs              # Fluent i18n loader (flc! macro)
 ├── common/
 │   ├── mod.rs                     # Shared helpers (format_time, split_path, …)
+│   ├── audio_fingerprint.rs       # Chromaprint audio fingerprint extraction (rusty-chromaprint)
 │   ├── traits.rs                  # Core traits: Search, CommonData, PrintResults, …
-│   ├── tool_data.rs               # CommonToolData struct
-│   ├── model.rs                   # ToolType, CheckingMethod, FileEntry, DeleteMethod
+│   ├── tool_data.rs               # CommonToolData struct, DeleteMethod enum
+│   ├── model.rs                   # ToolType, CheckingMethod, FileEntry
 │   ├── progress_data.rs           # ProgressData, CurrentStage enum
 │   ├── progress_stop_handler.rs   # ProgressThreadHandler, check_if_stop_received
 │   ├── dir_traversal.rs           # DirTraversalBuilder, DirTraversalResult
@@ -37,7 +38,7 @@ czkawka_core/src/
 │   ├── image.rs                   # Image loading helpers
 │   ├── process_utils.rs           # Child-process helpers
 │   ├── logger.rs                  # Logging configuration
-│   └── basic_gui_cli.rs           # Types shared with GUI/CLI boundaries
+│   └── basic_gui_cli.rs           # GUI/CLI argument parsing (paths, tool, preset, start-scan flags)
 ├── tools/
 │   ├── mod.rs                     # Re-exports all tool modules
 │   ├── duplicate/                 # Hash/name/size duplicate detection
@@ -45,9 +46,9 @@ czkawka_core/src/
 │   ├── empty_folder/
 │   ├── big_file/
 │   ├── similar_images/            # Perceptual hashing (image_hasher)
-│   ├── similar_videos/            # Frame-based video similarity
+│   ├── similar_videos/            # Visual (frame hash) + audio-fingerprint video similarity
 │   ├── same_music/                # Audio tag + chromaprint fingerprint
-│   ├── broken_files/              # ZIP/PDF/audio/image validation
+│   ├── broken_files/              # Archive/PDF/audio/image/font/markup validation
 │   ├── bad_extensions/            # Extension vs magic-number mismatch
 │   ├── bad_names/                 # Naming policy checks
 │   ├── invalid_symlinks/
@@ -83,32 +84,95 @@ src/tools/empty_files/
 └── traits.rs   # impl Search, CommonData, PrintResults, DeletingItems, AllTraits
 ```
 
----
+### How to add a new tool
 
-## Core Traits (`src/common/traits.rs`)
+1. **Create the module dir:** `src/tools/<tool_name>/` with three files:
+
+   | File | What goes there |
+   |------|-----------------|
+   | `mod.rs` | Tool struct holding `common_data: CommonToolData`, `information: Info` (results), `parameters: Parameters`. Implement `new(params: Parameters) -> Self`. |
+   | `core.rs` | Scanning logic. Functions named `check_files_*` that take `&mut self, stop_flag, progress_sender` and return `WorkContinueStatus`. |
+   | `traits.rs` | Implement `Search`, `CommonData`, `PrintResults`, `DeletingItems` (or reuse the default delete strategies from `CommonData`), and `AllTraits`. |
+
+2. **Add to `src/tools/mod.rs`:** `pub mod <tool_name>;`
+
+3. **Add to `ToolType` enum** in `src/common/model.rs` and bump `TOOLS_NUMBER` in `src/lib.rs`.
+
+4. **Wire in each frontend:**
+   - **CLI:** Add a subcommand in `commands.rs` + dispatch function in `main.rs`.
+   - **Krokiet:** Add `connect_scan/<tool>.rs` + model field in `SharedModels` + `zeroing_all_models()` entry + `ActiveTab` variant.
+   - **Web:** Add API endpoint + request struct + serialize function in `scan.rs`.
+
+### Tool design conventions
+
+- **`prepare_items()`** must be called before `search()` — it validates directories and extensions.
+- **`check_if_stop_received(stop_flag)`** must be polled in every hot loop inside `core.rs`.
+- **Progress updates** use `ProgressThreadHandler` (collected) or atomic counters with `DelayedSender`.
+- **Caching** (if used): define a `CACHE_<TOOL>_VERSION` constant, call `load_cache_from_file_generalized_by_path` / `save_cache_to_file_generalized`.
+- **`#[fun_time(message = "...", level = "debug")]`** on every public method for debug-build timing.
+
+### Minimal template
 
 ```rust
+// mod.rs
+pub struct MyTool {
+    common_data: CommonToolData,
+    information: Info,
+    parameters: Parameters,
+}
+pub struct Info { /* results fields */ }
+pub struct Parameters { /* tool-specific settings */ }
+impl MyTool {
+    pub fn new(parameters: Parameters) -> Self {
+        Self {
+            common_data: CommonToolData::new(ToolType::MyTool),
+            information: Info::default(),
+            parameters,
+        }
+    }
+}
+```
+
+```rust
+// core.rs
+pub fn check_files(&mut self, stop_flag: &Arc<AtomicBool>,
+                    progress_sender: Option<&Sender<ProgressData>>) -> WorkContinueStatus {
+    // 1. prepare_items()
+    // 2. DirTraversalBuilder or custom traversal
+    // 3. Process results → self.information
+    // 4. Return WorkContinueStatus::Continue (or Stop)
+}
+```
+
+```rust
+// traits.rs
+impl CommonData for MyTool { /* delegate get_cd/get_cd_mut to self.common_data */ }
+impl Search for MyTool { fn search(...) { self.check_files(...); } }
+impl PrintResults for MyTool { /* serialize self.information */ }
+impl DeletingItems for MyTool { /* or use the default impl from CommonData */ }
+impl AllTraits for MyTool {}
+impl DebugPrint for MyTool { /* println! debug info */ }
+```
+
+---
+
+## Core Traits
+
+### `traits.rs` — behaviour contracts
+
+```rust
+// src/common/traits.rs
+pub trait DebugPrint {
+    fn debug_print(&self);
+}
+
 pub trait Search {
     fn search(&mut self, stop_flag: &Arc<AtomicBool>,
               progress_sender: Option<&Sender<ProgressData>>);
 }
 
-pub trait CommonData {
-    type Info;
-    type Parameters;
-    fn get_cd(&self) -> &CommonToolData;
-    fn get_cd_mut(&mut self) -> &mut CommonToolData;
-    fn found_any_items(&self) -> bool;
-    // + common setters/getters
-}
-
-pub trait PrintResults: CommonData {
-    fn write_results<T: Write>(&self, w: &mut T) -> io::Result<()>;
-    fn print_results_to_writer<T: Write>(&self, w: &mut T) -> io::Result<()>;
-    fn save_results_to_file_as_json(&self, file: &str, pretty: bool) -> io::Result<()>;
-}
-
 pub trait DeletingItems {
+    #[must_use]
     fn delete_files(&mut self, stop_flag: &Arc<AtomicBool>,
                     progress_sender: Option<&Sender<ProgressData>>) -> WorkContinueStatus;
 }
@@ -123,9 +187,85 @@ pub trait ResultEntry {
     fn get_path(&self) -> &Path;
     fn get_modified_date(&self) -> u64;
     fn get_size(&self) -> u64;
+    fn get_inode(&self) -> u64;   // default: 0 (non-Unix platforms)
+}
+
+pub trait PrintResults: CommonData {
+    fn write_results<T: Write>(&self, writer: &mut T) -> io::Result<()>;
+    fn write_base_search_paths<T: Write>(&self, writer: &mut T) -> io::Result<()>;
+    fn print_results_to_output(&self);                               // stdout (CLI only)
+    fn print_results_to_file(&self, file_name: &str) -> io::Result<()>;
+    fn print_results_to_writer<T: Write>(&self, writer: &mut T) -> io::Result<()>;
+    fn save_results_to_file_as_json(&self, file: &str, pretty: bool) -> io::Result<()>;
+    fn save_all_in_one(&self, folder: &str, base_name: &str) -> io::Result<()>;
+    //  ^ writes .txt + _pretty.json + _compact.json
 }
 
 pub trait AllTraits: DebugPrint + PrintResults + DeletingItems + CommonData + Search {}
+```
+
+### `tool_data.rs` — data contracts
+
+```rust
+// src/common/tool_data.rs
+pub enum DeleteMethod {
+    None, Delete, AllExceptNewest, AllExceptOldest, OneOldest, OneNewest,
+    HardLink, AllExceptBiggest, AllExceptSmallest, OneBiggest, OneSmallest,
+}
+
+pub trait CommonData {
+    type Info;
+    type Parameters;
+
+    fn get_information(&self) -> Self::Info;
+    fn get_params(&self) -> Self::Parameters;
+    fn get_cd(&self) -> &CommonToolData;
+    fn get_cd_mut(&mut self) -> &mut CommonToolData;
+    fn get_check_method(&self) -> CheckingMethod { CheckingMethod::None }
+    fn found_any_items(&self) -> bool;
+
+    // ~30 setters/getters for: hide_hard_links, dry_run, use_cache,
+    //   delete_outdated_cache, stopped_search, file sizes, recursive_search,
+    //   use_reference_folders, delete_method, move_to_trash,
+    //   included/excluded/reference paths, extensions, excluded items
+
+    /// Validates and optimizes directories + extensions. Call before search().
+    fn prepare_items(&mut self, tool_extensions: Option<&[&str]>) -> Result<(), ()>;
+
+    // Built-in delete strategies (used by tools that don't override DeletingItems):
+    fn delete_simple_elements_and_add_to_messages<T: ResultEntry>(
+        &mut self, stop_flag: &Arc<AtomicBool>,
+        progress_sender: Option<&Sender<ProgressData>>,
+        delete_item_type: DeleteItemType<T>,
+    ) -> WorkContinueStatus;
+
+    fn delete_advanced_elements_and_add_to_messages<T: ResultEntry + Clone>(
+        &mut self, stop_flag: &Arc<AtomicBool>,
+        progress_sender: Option<&Sender<ProgressData>>,
+        files_to_process: Vec<Vec<T>>,
+    ) -> WorkContinueStatus;
+}
+```
+
+### Key supporting types (`src/common/model.rs`)
+
+```rust
+pub enum WorkContinueStatus { Continue, Stop }
+
+pub enum CheckingMethod {
+    None, Name, SizeName, Size, Hash, AudioTags, AudioContent, VideoAudioContent,
+}
+// VideoAudioContent selects the SimilarVideos audio-fingerprint mode (audio path, no ffmpeg).
+
+pub enum HashType { Blake3, Crc32, Xxh3 }
+
+pub struct FileEntry {
+    pub path: PathBuf,
+    pub size: u64,
+    pub modified_date: u64,
+    pub inode: u64,
+}
+// FileEntry implements ResultEntry — used by all tools as the standard result item.
 ```
 
 ---
@@ -190,6 +330,7 @@ match result {
 ```rust
 pub struct ProgressData {
     pub sstage: CurrentStage,       // Current operation
+    pub checking_method: CheckingMethod,  // e.g. Hash, AudioTags (disambiguates SameMusic/Duplicate)
     pub current_stage_idx: u8,      // Index of current stage
     pub max_stage_idx: u8,          // Max stages for this tool
     pub entries_checked: usize,
@@ -247,6 +388,10 @@ let (messages, opt_cache) =
 - Cached entries validated by path + size + mtime on load.
 - 8 GB memory limit on serialization.
 - Each tool has its own version constant (`CACHE_DUPLICATE_VERSION`, …).
+- Similar Videos keeps two independent caches that must not be merged: the visual-hash cache
+  (`cache_similar_videos_<CACHE_VIDEO_VERSION>__….bin`, `VideosEntry`, loaded with the inode fallback
+  `resolve_inode_cache_entries`) and the audio-fingerprint cache
+  (`cache_similar_videos_audio_<CACHE_VERSION>.bin`, `VideoAudioEntry`).
 
 ---
 
@@ -300,7 +445,9 @@ Tools that support reference directories: `Duplicate`, `SameMusic`,
 | `rusty-chromaprint` | Audio fingerprinting |
 | `vid_dup_finder_lib` | Video similarity |
 | `bincode` | Cache serialization |
-| `zip` | ZIP validation |
+| `zip`, `sevenz-rust2`, `tar`, `flate2`, `ruzstd`, `bzip2-rs`, `lzma-rs` | Archive validation (ZIP, 7z, tar, gz, zst, bz2, xz) |
+| `ttf-parser` | Font validation |
+| `quick-xml`, `toml`, `yaml-rust2`, `usvg` | Markup validation (XML/SVG, TOML, YAML; JSON via `serde_json`) |
 | `i18n-embed` + `rust-embed` | Fluent translations |
 | `trash` | Move-to-trash |
 | `directories-next` | Config/cache path |
@@ -311,3 +458,9 @@ Optional (behind features):
 - `libraw` → `rawler` / `libraw-rs` – RAW photo support
 - `libavif` – AVIF image support
 - `xdg_portal_trash` – FlatPak trash via XDG portal
+
+---
+
+## Child DOX Index
+
+None (leaf node — internal modules `common/`, `tools/`, `helpers/` are not durable boundaries).

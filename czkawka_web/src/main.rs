@@ -17,6 +17,10 @@ use crate::scan_manager::ScanManager;
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
+
     // If launched by double-click (no terminal attached), re-exec in a terminal
     if !std::io::stdin().is_terminal() {
         let exe = std::env::current_exe().expect("failed to get current executable path");
@@ -49,20 +53,17 @@ async fn main() {
             }
         }
 
-        // No terminal found - print a warning and continue running anyway
-        eprintln!("Warning: Not running in a terminal. Cannot find a terminal emulator to launch.");
-        eprintln!("The server will start but you may need to use 'kill' or system monitor to stop it.");
+        // No terminal found - log a warning and continue running anyway
+        tracing::warn!("Warning: Not running in a terminal. Cannot find a terminal emulator to launch.");
+        tracing::warn!("The server will start but you may need to use 'kill' or system monitor to stop it.");
     }
-
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .init();
 
     // Required by czkawka_core – sets up cache/config paths and image decoders.
     let _ = set_config_cache_path("Czkawka", "CzkawkaWeb");
 
     let state = AppState {
         scan_manager: Arc::new(ScanManager::new()),
+        tokio_handle: tokio::runtime::Handle::current(),
     };
 
     let app = Router::new()
@@ -74,9 +75,15 @@ async fn main() {
         .route("/api/scan/similar-images", post(api::scan::scan_similar_images))
         .route("/api/scan/similar-videos", post(api::scan::scan_similar_videos))
         .route("/api/scan/stop", post(api::scan::stop_scan_handler))
+        // Health
+        .route("/api/health", get(api::health::health_check))
         // Preview
         .route("/api/preview/image", get(api::preview::image_preview))
         .route("/api/preview/video", get(api::preview::video_preview))
+        // Raw file streaming (browser-viewable types) + OS open/reveal.
+        // `{name}` is a cosmetic segment so the browser titles the tab after the file.
+        .route("/api/file/{name}", get(api::file::get_file))
+        .route("/api/files/open", post(api::file::open_path))
         // Results & progress
         .route("/api/results/{scan_id}", get(api::results::get_results))
         .route("/api/scan/progress/{scan_id}", get(ws::ws_handler))
@@ -89,9 +96,14 @@ async fn main() {
 
     let port = std::env::var("CZKAWKA_PORT").ok().and_then(|p| p.parse::<u16>().ok()).unwrap_or(8095);
     let host = std::env::var("CZKAWKA_ADDRESS").unwrap_or_else(|_| "127.0.0.1".to_string());
-    let addr: SocketAddr = format!("{}:{}", host, port).parse().expect("Invalid CZKAWKA_ADDRESS or CZKAWKA_PORT");
+    let addr: SocketAddr = format!("{host}:{port}").parse().expect("Invalid CZKAWKA_ADDRESS or CZKAWKA_PORT");
     tracing::info!("Czkawka Web Server starting on http://{addr}");
 
     let listener = tokio::net::TcpListener::bind(addr).await.expect("Failed to bind to address");
-    axum::serve(listener, app).await.expect("Server error");
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async {
+            tokio::signal::ctrl_c().await.expect("failed to listen for ctrl-c");
+        })
+        .await
+        .expect("Server error");
 }

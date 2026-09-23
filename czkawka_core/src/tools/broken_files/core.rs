@@ -13,14 +13,18 @@ use lopdf::Document;
 use rayon::prelude::*;
 
 use crate::common::cache::{CACHE_BROKEN_FILES_VERSION, load_and_split_cache_generalized_by_path, save_and_connect_cache_generalized_by_path};
-use crate::common::consts::{AUDIO_FILES_EXTENSIONS, IMAGE_RS_BROKEN_FILES_EXTENSIONS, PDF_FILES_EXTENSIONS, VIDEO_FILES_EXTENSIONS, ZIP_FILES_EXTENSIONS};
-use crate::common::create_crash_message;
+use crate::common::consts::{
+    AUDIO_FILES_EXTENSIONS, BZ2_FILES_EXTENSIONS, FONT_FILES_EXTENSIONS, GZ_FILES_EXTENSIONS, IMAGE_RS_BROKEN_FILES_EXTENSIONS, JSON_FILES_EXTENSIONS, PDF_FILES_EXTENSIONS,
+    SEVENZ_FILES_EXTENSIONS, SVG_FILES_EXTENSIONS, TAR_FILES_EXTENSIONS, TOML_FILES_EXTENSIONS, VIDEO_FILES_EXTENSIONS, XML_FILES_EXTENSIONS, XZ_FILES_EXTENSIONS,
+    YAML_FILES_EXTENSIONS, ZIP_FILES_EXTENSIONS, ZST_FILES_EXTENSIONS,
+};
 use crate::common::dir_traversal::{DirTraversalBuilder, DirTraversalResult};
 use crate::common::model::{ToolType, WorkContinueStatus};
 use crate::common::process_utils::run_command_interruptible;
 use crate::common::progress_data::{CurrentStage, ProgressData};
 use crate::common::progress_stop_handler::{check_if_stop_received, prepare_thread_handler_common};
 use crate::common::tool_data::{CommonData, CommonToolData};
+use crate::common::{create_crash_message, normalize_error_string};
 use crate::helpers::audio_checker;
 use crate::tools::broken_files::{BrokenEntry, BrokenFiles, BrokenFilesParameters, CheckedTypes, CheckedTypesSingle, Info, TypeOfFile};
 
@@ -32,6 +36,7 @@ impl BrokenFiles {
             files_to_check: Default::default(),
             broken_files: Default::default(),
             params,
+            ffprobe_cache: std::sync::Mutex::new(std::collections::HashMap::new()),
         }
     }
 
@@ -101,6 +106,192 @@ impl BrokenFiles {
             Err(_inspected) => None,
         }
     }
+
+    fn check_broken_7z(mut file_entry: BrokenEntry) -> BrokenEntry {
+        let error = match sevenz_rust2::Archive::open(&file_entry.path) {
+            // Password-protected archives cannot be validated without the password, so are not reported as broken
+            Err(sevenz_rust2::Error::PasswordRequired) | Ok(_) => String::new(),
+            Err(e) => normalize_error_string(&e.to_string()),
+        };
+        file_entry.errors.insert(CheckedTypesSingle::Archive, error);
+        file_entry
+    }
+
+    fn check_broken_gz(mut file_entry: BrokenEntry) -> Option<BrokenEntry> {
+        match File::open(&file_entry.path) {
+            Ok(file) => {
+                let mut decoder = flate2::read::GzDecoder::new(file);
+                let error = match std::io::copy(&mut decoder, &mut std::io::sink()) {
+                    Err(e) => normalize_error_string(&e.to_string()),
+                    Ok(_) => String::new(),
+                };
+                file_entry.errors.insert(CheckedTypesSingle::Archive, error);
+                Some(file_entry)
+            }
+            Err(_inspected) => None,
+        }
+    }
+
+    fn check_broken_zst(mut file_entry: BrokenEntry) -> Option<BrokenEntry> {
+        match File::open(&file_entry.path) {
+            Ok(file) => {
+                let error = match ruzstd::decoding::StreamingDecoder::new(file) {
+                    Err(e) => normalize_error_string(&e.to_string()),
+                    Ok(mut decoder) => match std::io::copy(&mut decoder, &mut std::io::sink()) {
+                        Err(e) => normalize_error_string(&e.to_string()),
+                        Ok(_) => String::new(),
+                    },
+                };
+                file_entry.errors.insert(CheckedTypesSingle::Archive, error);
+                Some(file_entry)
+            }
+            Err(_inspected) => None,
+        }
+    }
+
+    fn check_broken_tar(mut file_entry: BrokenEntry) -> Option<BrokenEntry> {
+        match File::open(&file_entry.path) {
+            Ok(file) => {
+                let mut archive = tar::Archive::new(file);
+                let error = match archive.entries() {
+                    Err(e) => normalize_error_string(&e.to_string()),
+                    Ok(entries) => {
+                        let mut err = String::new();
+                        for entry in entries {
+                            if let Err(e) = entry {
+                                err = normalize_error_string(&e.to_string());
+                                break;
+                            }
+                        }
+                        err
+                    }
+                };
+                file_entry.errors.insert(CheckedTypesSingle::Archive, error);
+                Some(file_entry)
+            }
+            Err(_inspected) => None,
+        }
+    }
+
+    fn check_broken_bz2(mut file_entry: BrokenEntry) -> Option<BrokenEntry> {
+        match File::open(&file_entry.path) {
+            Ok(file) => {
+                let mut decoder = bzip2_rs::DecoderReader::new(file);
+                let error = match std::io::copy(&mut decoder, &mut std::io::sink()) {
+                    Err(e) => normalize_error_string(&e.to_string()),
+                    Ok(_) => String::new(),
+                };
+                file_entry.errors.insert(CheckedTypesSingle::Archive, error);
+                Some(file_entry)
+            }
+            Err(_inspected) => None,
+        }
+    }
+
+    fn check_broken_xz(mut file_entry: BrokenEntry) -> Option<BrokenEntry> {
+        match File::open(&file_entry.path) {
+            Ok(file) => {
+                let mut reader = std::io::BufReader::new(file);
+                let error = match lzma_rs::xz_decompress(&mut reader, &mut std::io::sink()) {
+                    Err(e) => normalize_error_string(&e.to_string()),
+                    Ok(()) => String::new(),
+                };
+                file_entry.errors.insert(CheckedTypesSingle::Archive, error);
+                Some(file_entry)
+            }
+            Err(_inspected) => None,
+        }
+    }
+
+    fn check_broken_font(mut file_entry: BrokenEntry) -> Option<BrokenEntry> {
+        match std::fs::read(&file_entry.path) {
+            Ok(data) => {
+                let error = match ttf_parser::Face::parse(&data, 0) {
+                    Err(e) => normalize_error_string(&format!("{e:?}")),
+                    Ok(_) => String::new(),
+                };
+                file_entry.errors.insert(CheckedTypesSingle::Font, error);
+                Some(file_entry)
+            }
+            Err(_inspected) => None,
+        }
+    }
+
+    fn check_broken_json(mut file_entry: BrokenEntry) -> Option<BrokenEntry> {
+        match std::fs::read(&file_entry.path) {
+            Ok(data) => {
+                let error = match serde_json::from_slice::<serde_json::Value>(&data) {
+                    Err(e) => normalize_error_string(&e.to_string()),
+                    Ok(_) => String::new(),
+                };
+                file_entry.errors.insert(CheckedTypesSingle::Markup, error);
+                Some(file_entry)
+            }
+            Err(_inspected) => None,
+        }
+    }
+
+    fn check_broken_xml(mut file_entry: BrokenEntry) -> Option<BrokenEntry> {
+        match std::fs::read(&file_entry.path) {
+            Ok(data) => {
+                let mut reader = quick_xml::Reader::from_reader(data.as_slice());
+                reader.config_mut().check_end_names = true;
+                let error = loop {
+                    match reader.read_event() {
+                        Err(e) => break normalize_error_string(&e.to_string()),
+                        Ok(quick_xml::events::Event::Eof) => break String::new(),
+                        Ok(_) => {}
+                    }
+                };
+                file_entry.errors.insert(CheckedTypesSingle::Markup, error);
+                Some(file_entry)
+            }
+            Err(_inspected) => None,
+        }
+    }
+
+    fn check_broken_toml(mut file_entry: BrokenEntry) -> Option<BrokenEntry> {
+        match std::fs::read_to_string(&file_entry.path) {
+            Ok(text) => {
+                let error = match toml::from_str::<toml::Table>(&text) {
+                    Err(e) => normalize_error_string(&e.to_string()),
+                    Ok(_) => String::new(),
+                };
+                file_entry.errors.insert(CheckedTypesSingle::Markup, error);
+                Some(file_entry)
+            }
+            Err(_inspected) => None,
+        }
+    }
+
+    fn check_broken_yaml(mut file_entry: BrokenEntry) -> Option<BrokenEntry> {
+        match std::fs::read_to_string(&file_entry.path) {
+            Ok(text) => {
+                let error = match yaml_rust2::YamlLoader::load_from_str(&text) {
+                    Err(e) => normalize_error_string(&e.to_string()),
+                    Ok(_) => String::new(),
+                };
+                file_entry.errors.insert(CheckedTypesSingle::Markup, error);
+                Some(file_entry)
+            }
+            Err(_inspected) => None,
+        }
+    }
+
+    fn check_broken_svg(mut file_entry: BrokenEntry) -> Option<BrokenEntry> {
+        match std::fs::read(&file_entry.path) {
+            Ok(data) => {
+                let error = match usvg::Tree::from_data(&data, &usvg::Options::default()) {
+                    Err(e) => normalize_error_string(&format!("{e:?}")),
+                    Ok(_) => String::new(),
+                };
+                file_entry.errors.insert(CheckedTypesSingle::Markup, error);
+                Some(file_entry)
+            }
+            Err(_inspected) => None,
+        }
+    }
+
     fn check_broken_audio(mut file_entry: BrokenEntry) -> Option<BrokenEntry> {
         match File::open(&file_entry.path) {
             Ok(file) => {
@@ -152,7 +343,12 @@ impl BrokenFiles {
         })
     }
 
-    fn check_broken_video_ffprobe(mut file_entry: BrokenEntry, stop_flag: &Arc<AtomicBool>) -> Option<BrokenEntry> {
+    fn check_broken_video_ffprobe(mut file_entry: BrokenEntry, stop_flag: &Arc<AtomicBool>, cache: &std::sync::Mutex<std::collections::HashMap<std::path::PathBuf, String>>) -> Option<BrokenEntry> {
+        if let Some(cached_error) = cache.lock().expect("ffprobe cache lock poisoned").get(&file_entry.path) {
+            file_entry.errors.insert(CheckedTypesSingle::VideoFfprobe, cached_error.clone());
+            return Some(file_entry);
+        }
+
         let ffprobe_errors = [
             ("moov atom not found", Some("broken file structure")),
             ("error reading header", Some("broken file structure")),
@@ -177,18 +373,23 @@ impl BrokenFiles {
                 if let Some((error_message, additional_message)) = ffprobe_errors.iter().find(|(err, _)| combined.contains(err)) {
                     format!("{error_message}{}", additional_message.map(|e| format!(" ({e})")).unwrap_or_default())
                 } else if !output.status.success() {
-                    // debug_save_file("ffprobe_failed_output.txt", &format!("{} --- \n{}", file_entry.path.to_string_lossy(), combined));
                     format!("ffprobe exited with non-zero status: {}", output.status)
                 } else {
                     String::new()
                 }
             }
         };
+        cache.lock().expect("ffprobe cache lock poisoned").insert(file_entry.path.clone(), error.clone());
         file_entry.errors.insert(CheckedTypesSingle::VideoFfprobe, error);
         Some(file_entry)
     }
 
-    fn check_broken_video_ffmpeg(mut file_entry: BrokenEntry, stop_flag: &Arc<AtomicBool>) -> Option<BrokenEntry> {
+    fn check_broken_video_ffmpeg(mut file_entry: BrokenEntry, stop_flag: &Arc<AtomicBool>, cache: &std::sync::Mutex<std::collections::HashMap<std::path::PathBuf, String>>) -> Option<BrokenEntry> {
+        if let Some(cached_error) = cache.lock().expect("ffprobe cache lock poisoned").get(&file_entry.path) {
+            file_entry.errors.insert(CheckedTypesSingle::VideoFfmpeg, cached_error.clone());
+            return Some(file_entry);
+        }
+
         let ffmpeg_message = [
             ("Output file does not contain any stream", Some("cannot find video stream - possible not even video file")),
             ("missing mandatory atoms, broken header", Some("broken file structure")),
@@ -249,16 +450,17 @@ impl BrokenFiles {
                 }
             }
         };
+        cache.lock().expect("ffprobe cache lock poisoned").insert(file_entry.path.clone(), error.clone());
         file_entry.errors.insert(CheckedTypesSingle::VideoFfmpeg, error);
         Some(file_entry)
     }
 
-    fn check_broken_video(mut file_entry: BrokenEntry, stop_flag: &Arc<AtomicBool>, checked_types: CheckedTypes) -> Option<BrokenEntry> {
+    fn check_broken_video(mut file_entry: BrokenEntry, stop_flag: &Arc<AtomicBool>, checked_types: CheckedTypes, cache: &std::sync::Mutex<std::collections::HashMap<std::path::PathBuf, String>>) -> Option<BrokenEntry> {
         if checked_types.contains(CheckedTypes::VIDEO_FFPROBE) {
-            file_entry = Self::check_broken_video_ffprobe(file_entry, stop_flag)?;
+            file_entry = Self::check_broken_video_ffprobe(file_entry, stop_flag, cache)?;
         }
         if checked_types.contains(CheckedTypes::VIDEO_FFMPEG) {
-            file_entry = Self::check_broken_video_ffmpeg(file_entry, stop_flag)?;
+            file_entry = Self::check_broken_video_ffmpeg(file_entry, stop_flag, cache)?;
         }
         Some(file_entry)
     }
@@ -273,13 +475,25 @@ impl BrokenFiles {
         save_and_connect_cache_generalized_by_path(&get_broken_files_cache_file(), vec_file_entry, loaded_hash_map, self);
     }
 
-    fn check_file(file_entry: BrokenEntry, stop_flag: &Arc<AtomicBool>, checked_types: CheckedTypes) -> Option<Option<BrokenEntry>> {
+    fn check_file(file_entry: BrokenEntry, stop_flag: &Arc<AtomicBool>, checked_types: CheckedTypes, cache: &std::sync::Mutex<std::collections::HashMap<std::path::PathBuf, String>>) -> Option<Option<BrokenEntry>> {
         match check_extension_availability(&file_entry.path) {
             TypeOfFile::Image => Some(Some(Self::check_broken_image(file_entry))),
             TypeOfFile::ArchiveZip => Some(Self::check_broken_zip(file_entry)),
+            TypeOfFile::Archive7z => Some(Some(Self::check_broken_7z(file_entry))),
+            TypeOfFile::ArchiveGz => Some(Self::check_broken_gz(file_entry)),
+            TypeOfFile::ArchiveTar => Some(Self::check_broken_tar(file_entry)),
+            TypeOfFile::ArchiveZst => Some(Self::check_broken_zst(file_entry)),
+            TypeOfFile::ArchiveBz2 => Some(Self::check_broken_bz2(file_entry)),
+            TypeOfFile::ArchiveXz => Some(Self::check_broken_xz(file_entry)),
+            TypeOfFile::Font => Some(Self::check_broken_font(file_entry)),
+            TypeOfFile::Json => Some(Self::check_broken_json(file_entry)),
+            TypeOfFile::Xml => Some(Self::check_broken_xml(file_entry)),
+            TypeOfFile::Toml => Some(Self::check_broken_toml(file_entry)),
+            TypeOfFile::Yaml => Some(Self::check_broken_yaml(file_entry)),
+            TypeOfFile::Svg => Some(Self::check_broken_svg(file_entry)),
             TypeOfFile::Audio => Some(Self::check_broken_audio(file_entry)),
             TypeOfFile::Pdf => Some(Some(Self::check_broken_pdf(file_entry))),
-            TypeOfFile::Video => Self::check_broken_video(file_entry, stop_flag, checked_types).map(Some),
+            TypeOfFile::Video => Self::check_broken_video(file_entry, stop_flag, checked_types, cache).map(Some),
             TypeOfFile::Unknown => {
                 error!("Unknown file type of: {file_entry:?}");
                 Some(None)
@@ -305,6 +519,7 @@ impl BrokenFiles {
 
         let non_cached_files_to_check = non_cached_files_to_check.into_iter().collect::<Vec<_>>();
         let checked_types = self.params.checked_types;
+        let cache = &self.ffprobe_cache;
 
         debug!("look_for_broken_files - started finding for broken files");
         let mut vec_file_entry: Vec<BrokenEntry> = non_cached_files_to_check
@@ -316,7 +531,7 @@ impl BrokenFiles {
                 }
 
                 let size = file_entry.size;
-                let res = Self::check_file(file_entry, stop_flag, checked_types);
+                let res = Self::check_file(file_entry, stop_flag, checked_types, cache);
 
                 progress_handler.increase_items(1);
                 progress_handler.increase_size(size);
@@ -365,6 +580,30 @@ fn check_extension_availability(full_name: &Path) -> TypeOfFile {
         TypeOfFile::Image
     } else if ZIP_FILES_EXTENSIONS.contains(&extension_lowercase.as_str()) {
         TypeOfFile::ArchiveZip
+    } else if SEVENZ_FILES_EXTENSIONS.contains(&extension_lowercase.as_str()) {
+        TypeOfFile::Archive7z
+    } else if GZ_FILES_EXTENSIONS.contains(&extension_lowercase.as_str()) {
+        TypeOfFile::ArchiveGz
+    } else if TAR_FILES_EXTENSIONS.contains(&extension_lowercase.as_str()) {
+        TypeOfFile::ArchiveTar
+    } else if ZST_FILES_EXTENSIONS.contains(&extension_lowercase.as_str()) {
+        TypeOfFile::ArchiveZst
+    } else if BZ2_FILES_EXTENSIONS.contains(&extension_lowercase.as_str()) {
+        TypeOfFile::ArchiveBz2
+    } else if XZ_FILES_EXTENSIONS.contains(&extension_lowercase.as_str()) {
+        TypeOfFile::ArchiveXz
+    } else if FONT_FILES_EXTENSIONS.contains(&extension_lowercase.as_str()) {
+        TypeOfFile::Font
+    } else if JSON_FILES_EXTENSIONS.contains(&extension_lowercase.as_str()) {
+        TypeOfFile::Json
+    } else if XML_FILES_EXTENSIONS.contains(&extension_lowercase.as_str()) {
+        TypeOfFile::Xml
+    } else if TOML_FILES_EXTENSIONS.contains(&extension_lowercase.as_str()) {
+        TypeOfFile::Toml
+    } else if YAML_FILES_EXTENSIONS.contains(&extension_lowercase.as_str()) {
+        TypeOfFile::Yaml
+    } else if SVG_FILES_EXTENSIONS.contains(&extension_lowercase.as_str()) {
+        TypeOfFile::Svg
     } else if PDF_FILES_EXTENSIONS.contains(&extension_lowercase.as_str()) {
         TypeOfFile::Pdf
     } else if AUDIO_FILES_EXTENSIONS.contains(&extension_lowercase.as_str()) {

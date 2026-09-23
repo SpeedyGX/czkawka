@@ -181,7 +181,6 @@ pub(crate) fn set_select_buttons(app: &MainWindow) {
 
 fn extract_comparable_field(model: &SingleMainListModel, property: Property, active_tab: ActiveTab) -> u64 {
     let mut val_ints = model.val_int.iter();
-    let mut val_strs = model.val_str.iter();
     match property {
         Property::Size => {
             let high = val_ints.nth(active_tab.get_int_size_idx()).expect("can find file size property");
@@ -193,7 +192,12 @@ fn extract_comparable_field(model: &SingleMainListModel, property: Property, act
             let low = val_ints.next().expect("can find file last modified property");
             connect_i32_into_u64(high, low)
         }
-        Property::PathLength => val_strs.nth(active_tab.get_str_path_idx()).expect("can find file path property").len() as u64,
+        Property::PathLength => {
+            let path_len = model.val_str.iter().nth(active_tab.get_str_path_idx()).expect("can find file path property").len();
+            let name_len = model.val_str.iter().nth(active_tab.get_str_name_idx()).expect("can find file name property").len();
+            // Directory length is the primary key, filename length only breaks ties within the same directory.
+            ((path_len as u64) << 32) | (name_len as u64)
+        }
         Property::Resolution => val_ints.nth(active_tab.get_int_pixel_count_idx()).expect("can find pixel count proerty") as u64,
     }
 }

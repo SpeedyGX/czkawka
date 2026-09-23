@@ -168,7 +168,7 @@ All frontends follow the same core pattern:
 
 | Framework | Used By | Version | Notes |
 |-----------|---------|---------|-------|
-| [Slint](https://slint.dev/) | Krokiet, Cedinia | 1.15.0 | Declarative UI; GPL-3.0; supports winit, Android, Skia, femtovg, software renderers |
+| [Slint](https://slint.dev/) | Krokiet, Cedinia | 1.17.0 | Declarative UI; GPL-3.0; supports winit, Android, Skia, femtovg, software renderers |
 | [GTK 4](https://gtk.org/) via [gtk4-rs](https://gtk-rs.org/) | czkawka_gui | 0.11.0 (v4_6) | Legacy; maintenance mode only |
 | [axum](https://crates.io/crates/axum) | czkawka_web | 0.8 | HTTP framework with WebSocket support |
 | [tokio](https://tokio.rs/) | czkawka_web | 1 (full) | Async runtime |
@@ -456,7 +456,7 @@ Nightly releases are produced from the `master` branch using `softprops/action-g
 
 | Crate | Krokiet | Cedinia | czkawka_cli | czkawka_gui | czkawka_web |
 |-------|:-------:|:-------:|:-----------:|:-----------:|:-----------:|
-| [`slint`](https://crates.io/crates/slint) 1.15.0 | ✅ | ✅ | — | — | — |
+| [`slint`](https://crates.io/crates/slint) 1.17.0 | ✅ | ✅ | — | — | — |
 | [`gtk4`](https://crates.io/crates/gtk4) 0.11.0 | — | — | — | ✅ | — |
 | [`axum`](https://crates.io/crates/axum) 0.8 | — | — | — | — | ✅ |
 | [`tokio`](https://crates.io/crates/tokio) 1 | — | — | — | — | ✅ |
@@ -535,7 +535,7 @@ Nightly releases are produced from the `master` branch using `softprops/action-g
 |---|---|---|
 | Tool comparison matrix (14 tools) | [`czkawka_core/src/tools/mod.rs`](../czkawka_core/src/tools/mod.rs), [`krokiet/src/connect_scan/`](../krokiet/src/connect_scan/), [`czkawka_web/src/api/scan.rs`](../czkawka_web/src/api/scan.rs), [`docs/04-cedinia.md`](04-cedinia.md#6-scan-tool-implementations--srcscannersrs) | All tool counts match source. One correction made (see below). |
 | File action matrix | [`krokiet/src/file_actions/`](../krokiet/src/file_actions/), [`czkawka_web/src/api/actions.rs`](../czkawka_web/src/api/actions.rs) | All action flags confirmed correct. |
-| Technology stack versions | [`krokiet/Cargo.toml`](../krokiet/Cargo.toml), [`czkawka_web/Cargo.toml`](../czkawka_web/Cargo.toml), [`czkawka_gui/Cargo.toml`](../czkawka_gui/Cargo.toml) | Slint 1.15.0, axum 0.8, GTK4 0.11.0 (v4_6), tokio 1 (full) — all confirmed. |
+| Technology stack versions | [`krokiet/Cargo.toml`](../krokiet/Cargo.toml), [`czkawka_web/Cargo.toml`](../czkawka_web/Cargo.toml), [`czkawka_gui/Cargo.toml`](../czkawka_gui/Cargo.toml) | Slint 1.17.0, axum 0.8, GTK4 0.11.0 (v4_6), tokio 1 (full) — all confirmed. |
 | Development workflow | [`justfile`](../justfile), [`.github/workflows/`](../.github/workflows/) | All `just` commands referenced exist. All 5 CI workflow files match (linux, windows, mac, android, quality). |
 | Build profiles | [`docs/01-top-level-structure.md`](01-top-level-structure.md) | All 5 listed profiles match. |
 | Architecture diagram tool counts | Sub-documents 02, 03, 04, 07 | Krokiet 14, Cedinia 11, CLI 14, GTK 11, Web 3 — all correct. |
@@ -559,7 +559,7 @@ Nightly releases are produced from the `master` branch using `softprops/action-g
 - Krokiet has all 14 tools (14 files in [`krokiet/src/connect_scan/`](../krokiet/src/connect_scan/)).
 - czkawka_web has 3 distinct tools (Duplicates, SimilarImages, SimilarVideos — hardlink is a DuplicateFinder mode, not a separate tool).
 - File action matrix: krokiet has all 8 actions (7 Rust files in [`krokiet/src/file_actions/`](../krokiet/src/file_actions/)), czkawka_web has delete + hardlink only.
-- All technology version numbers (Slint 1.15.0, axum 0.8, GTK4 0.11.0, etc.) match their respective Cargo.toml files.
+- All technology version numbers (Slint 1.17.0, axum 0.8, GTK4 0.11.0, etc.) match their respective Cargo.toml files.
 - All 5 CI/CD workflow file names in section 9.7 match the actual [`.github/workflows/`](../.github/workflows/) directory.
 - Architecture diagram tool counts: 14 (krokiet), 11 (cedinia), 14 (CLI), 11 (GTK), 3 (web) — all correct.
 - The Data Flow and Two Scanning Approaches sections accurately reflect `czkawka_core` architecture.

@@ -330,12 +330,14 @@ fn stage_label(stage: CurrentStage) -> String {
         | CurrentStage::DuplicatePreHashCacheLoading
         | CurrentStage::SameMusicCacheLoadingTags
         | CurrentStage::SameMusicCacheLoadingFingerprints
-        | CurrentStage::ExifRemoverCacheLoading => flc!("stage_loading_cache"),
+        | CurrentStage::ExifRemoverCacheLoading
+        | CurrentStage::SimilarVideosAudioCacheLoading => flc!("stage_loading_cache"),
         CurrentStage::DuplicateCacheSaving
         | CurrentStage::DuplicatePreHashCacheSaving
         | CurrentStage::SameMusicCacheSavingTags
         | CurrentStage::SameMusicCacheSavingFingerprints
-        | CurrentStage::ExifRemoverCacheSaving => flc!("stage_saving_cache"),
+        | CurrentStage::ExifRemoverCacheSaving
+        | CurrentStage::SimilarVideosAudioCacheSaving => flc!("stage_saving_cache"),
         CurrentStage::SimilarImagesCalculatingHashes => flc!("stage_calculating_image_hashes"),
         CurrentStage::SimilarImagesComparingHashes => flc!("stage_comparing_images"),
         CurrentStage::SimilarVideosCalculatingHashes => flc!("stage_calculating_video_hashes"),
@@ -344,10 +346,12 @@ fn stage_label(stage: CurrentStage) -> String {
         CurrentStage::BadNamesChecking => flc!("stage_checking_names"),
         CurrentStage::SameMusicReadingTags => flc!("stage_reading_music_tags"),
         CurrentStage::SameMusicComparingTags => flc!("stage_comparing_tags"),
-        CurrentStage::SameMusicCalculatingFingerprints => flc!("stage_calculating_music_fingerprints"),
-        CurrentStage::SameMusicComparingFingerprints => flc!("stage_comparing_fingerprints"),
+        CurrentStage::SameMusicCalculatingFingerprints | CurrentStage::SimilarVideosAudioCalculatingFingerprints => flc!("stage_calculating_music_fingerprints"),
+        CurrentStage::SameMusicComparingFingerprints | CurrentStage::SimilarVideosAudioComparingFingerprints => flc!("stage_comparing_fingerprints"),
         CurrentStage::ExifRemoverExtractingTags => flc!("stage_extracting_exif"),
-        CurrentStage::VideoOptimizerCreatingThumbnails | CurrentStage::SimilarVideosCreatingThumbnails => flc!("stage_creating_video_thumbnails"),
+        CurrentStage::VideoOptimizerCreatingThumbnails | CurrentStage::SimilarVideosCreatingThumbnails | CurrentStage::SimilarVideosAudioCreatingThumbnails => {
+            flc!("stage_creating_video_thumbnails")
+        }
         CurrentStage::VideoOptimizerProcessingVideos => flc!("stage_processing_videos"),
         CurrentStage::DeletingFiles => flc!("stage_deleting"),
         CurrentStage::RenamingFiles => flc!("stage_renaming"),

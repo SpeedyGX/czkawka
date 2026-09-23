@@ -192,3 +192,9 @@ language preference.
 
 Optional features (forwarded to core): `heif`, `libraw`, `libavif`,
 `xdg_portal_trash`.
+
+---
+
+## Child DOX Index
+
+None (leaf node — internal modules `gui_structs/`, `connect_things/`, `helpers/` are not durable boundaries).

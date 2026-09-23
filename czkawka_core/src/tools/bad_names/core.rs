@@ -132,6 +132,11 @@ pub fn check_and_generate_new_name(path: &Path, checked_issues: &NameIssues) -> 
     let mut stem = path.file_stem()?.to_string_lossy().to_string();
     let mut extension = path.extension().map(|e| e.to_string_lossy().to_string());
 
+    // Lazily-populated cache so deunicode is called at most once per stem/extension
+    // across both non_ascii_graphical and restricted_charset_allowed checks.
+    let mut deunicoded_stem: Option<String> = None;
+    let mut deunicoded_ext: Option<String> = None;
+
     if checked_issues.uppercase_extension
         && let Some(ref mut ext) = extension
         && ext.chars().any(|c| c.is_uppercase())
@@ -148,18 +153,32 @@ pub fn check_and_generate_new_name(path: &Path, checked_issues: &NameIssues) -> 
     }
 
     if checked_issues.non_ascii_graphical {
-        stem = deunicode::deunicode(&stem);
+        let d_stem = deunicode::deunicode(&stem);
+        deunicoded_stem = Some(d_stem.clone());
+        stem = d_stem;
 
         if let Some(ref mut ext) = extension {
-            *ext = deunicode::deunicode(ext).chars().filter(|e| e.is_ascii_graphic() || *e == ' ').collect();
+            let d_ext = deunicode::deunicode(ext);
+            deunicoded_ext = Some(d_ext.clone());
+            *ext = d_ext.chars().filter(|e| e.is_ascii_graphic() || *e == ' ').collect();
         }
     }
 
     if let Some(allowed_chars) = &checked_issues.restricted_charset_allowed {
-        stem = deunicode::deunicode(&stem).chars().filter(|c| is_alphanumeric(*c) || allowed_chars.contains(c)).collect();
+        stem = deunicoded_stem
+            .take()
+            .unwrap_or_else(|| deunicode::deunicode(&stem))
+            .chars()
+            .filter(|c| is_alphanumeric(*c) || allowed_chars.contains(c))
+            .collect();
 
         if let Some(ref mut ext) = extension {
-            *ext = deunicode::deunicode(ext).chars().filter(|c| is_alphanumeric(*c) || allowed_chars.contains(c)).collect();
+            *ext = deunicoded_ext
+                .take()
+                .unwrap_or_else(|| deunicode::deunicode(ext))
+                .chars()
+                .filter(|c| is_alphanumeric(*c) || allowed_chars.contains(c))
+                .collect();
         }
     }
 
@@ -214,6 +233,8 @@ fn remove_duplicated_non_alphanumeric(s: &str) -> String {
     result
 }
 
+// Manually-maintained Unicode emoji ranges based on Unicode 15.1 / Emoji 15.1.
+// Keep in sync with the Unicode Emoji specification when upgrading.
 fn is_emoji(c: char) -> bool {
     let code = c as u32;
     matches!(code,

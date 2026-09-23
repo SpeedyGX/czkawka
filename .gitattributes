@@ -1,0 +1,12 @@
+# Normalize text source files to Unix (LF) line endings.
+# `.rustfmt.toml` sets `newline_style = "Unix"`, so a CRLF checkout makes
+# `cargo fmt --check` fail on line endings alone.
+*.rs   text eol=lf
+
+# Web assets are plain text and already LF in-tree; keep them normalized.
+# Other text types (e.g. *.ftl which is Crowdin-managed, *.slint, *.toml, *.md)
+# are intentionally omitted: declaring them while CRLF is still present in-tree
+# would trigger a large renormalization on the next `git add`/checkout.
+*.js   text eol=lf
+*.css  text eol=lf
+*.html text eol=lf

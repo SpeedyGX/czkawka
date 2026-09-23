@@ -212,7 +212,6 @@ and used by `czkawka_core`'s config path logic.
 |---|---|---|
 | Video tools | No | Yes |
 | Video optimizer | No | Yes |
-| Bad names tool | Yes | No |
 | File picker | JNI (Android) / rfd (desktop) | rfd |
 | Settings | JSON, no presets | JSON, 11 presets |
 | Column indices | `common.rs` (own set) | `common.rs` (own set) |
@@ -267,3 +266,9 @@ android-build = "0.1.2"   # Compiles CediniaFilePicker.java → classes.dex
 ## Optional Features (forwarded to czkawka_core)
 
 `heif`, `libraw`, `libavif`, `xdg_portal_trash`
+
+---
+
+## Child DOX Index
+
+None (leaf node — internal modules `callbacks/`, `settings/` are not durable boundaries).

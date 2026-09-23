@@ -27,9 +27,23 @@ pub const IMAGE_RS_BROKEN_FILES_EXTENSIONS: &[&str] = &[
 ];
 pub const HEIC_EXTENSIONS: &[&str] = &["heif", "heifs", "heic", "heics", "avci", "avcs", "hif"];
 pub const ZIP_FILES_EXTENSIONS: &[&str] = &["zip", "jar"];
+pub const SEVENZ_FILES_EXTENSIONS: &[&str] = &["7z"];
+pub const GZ_FILES_EXTENSIONS: &[&str] = &["gz", "tgz"];
+pub const TAR_FILES_EXTENSIONS: &[&str] = &["tar"];
+pub const ZST_FILES_EXTENSIONS: &[&str] = &["zst", "tzst"];
+pub const BZ2_FILES_EXTENSIONS: &[&str] = &["bz2", "tbz2", "tbz"];
+pub const XZ_FILES_EXTENSIONS: &[&str] = &["xz", "txz"];
+// WOFF and WOFF2 are excluded, because they wrap TTF/OTF in a container that ttf-parser cannot parse directly
+pub const FONT_FILES_EXTENSIONS: &[&str] = &["ttf", "otf", "ttc"];
+// Markup/structured-text files - validated as JSON, XML, TOML or YAML
+pub const JSON_FILES_EXTENSIONS: &[&str] = &["json"];
+pub const XML_FILES_EXTENSIONS: &[&str] = &["xml", "xhtml", "xsd", "xsl", "xslt", "rss", "atom"];
+pub const SVG_FILES_EXTENSIONS: &[&str] = &["svg", "svgz"];
+pub const TOML_FILES_EXTENSIONS: &[&str] = &["toml"];
+pub const YAML_FILES_EXTENSIONS: &[&str] = &["yaml", "yml"];
 pub const PDF_FILES_EXTENSIONS: &[&str] = &["pdf"];
 pub const AUDIO_FILES_EXTENSIONS: &[&str] = &[
-    "mp3", "flac", "wav", "ogg", "m4a", "aac", "aiff", "pcm", "aif", "aiff", "aifc", "m3a", "mp2", "mp4a", "mp2a", "mpga", "wave", "weba", "wma", "oga",
+    "mp3", "flac", "wav", "ogg", "opus", "m4a", "aac", "aiff", "pcm", "aif", "aiff", "aifc", "m3a", "mp2", "mp4a", "mp2a", "mpga", "wave", "weba", "wma", "oga",
 ];
 pub const VIDEO_FILES_EXTENSIONS: &[&str] = &[
     "mp4", "m4v", "mkv", "avi", "mov", "webm", "flv", "wmv", // Popular

@@ -11,28 +11,12 @@ export component MainList {
     in-out property <bool> working: false;
 
     in-out property <[SingleMainListModel]> duplicate_files_model: [];
-    in-out property <[SingleMainListModel]> empty_folder_model: [
-        {checked: false, selected_row: false, header_row: false, filled_header_row: false, val_str: ["kropkarz", "/Xd1", "24.10.2023"], val_int: []} ,
-        {checked: false, selected_row: false, header_row: false, filled_header_row: false, val_str: ["witasphere", "/Xd1/Imagerren2", "25.11.1991"], val_int: []},
-        {checked: true, selected_row: false, header_row: false, filled_header_row: false, val_str: ["lokkaler", "/Xd1/Vide2", "01.23.1911"], val_int: []}
-    ];
+    in-out property <[SingleMainListModel]> empty_folder_model: [];
     in-out property <[SingleMainListModel]> big_files_model: [];
-    in-out property <[SingleMainListModel]> empty_files_model: [
-        {checked: false, selected_row: false, header_row: false, filled_header_row: false, val_str: ["kropkarz", "/Xd1", "24.10.2023"], val_int: []} ,
-        {checked: false, selected_row: false, header_row: false, filled_header_row: false, val_str: ["witasphere", "/Xd1/Imagerren2", "25.11.1991"], val_int: []},
-        {checked: true, selected_row: false, header_row: false, filled_header_row: false, val_str: ["lokkaler", "/Xd1/Vide2", "01.23.1911"], val_int: []}
-    ];
+    in-out property <[SingleMainListModel]> empty_files_model: [];
     in-out property <[SingleMainListModel]> temporary_files_model: [];
-    in-out property <[SingleMainListModel]> similar_images_model: [
-        {checked: false, selected_row: false, header_row: true, filled_header_row: false, val_str: ["Original", "500KB", "100x100", "kropkarz", "/Xd1", "24.10.2023"], val_int: []},
-        {checked: false, selected_row: false, header_row: false, filled_header_row: false, val_str: ["Similar", "500KB", "100x100", "witasphere", "/Xd1/Imagerren2", "25.11.1991"], val_int: []},
-        {checked: true, selected_row: false, header_row: false, filled_header_row: false, val_str: ["Similar", "500KB", "100x100", "lokkaler", "/Xd1/Vide2", "01.23.1911"], val_int: []}
-    ];
-    in-out property <[SingleMainListModel]> similar_videos_model: [
-        {checked: false, selected_row: false, header_row: true, filled_header_row: false, val_str: ["100 %", "500KB", "video1", "/Xd1", "1920x1080", "02:30", "5000kbps", "30.00", "h264", "24.10.2023", ""], val_int: []},
-        {checked: false, selected_row: false, header_row: false, filled_header_row: false, val_str: ["95 %", "500KB", "video2", "/Xd1/Videos", "1920x1080", "02:32", "4800kbps", "29.97", "h264", "25.11.1991", ""], val_int: []},
-        {checked: true, selected_row: false, header_row: false, filled_header_row: false, val_str: ["87 %", "500KB", "video3", "/Xd1/Videos2", "1920x1080", "02:28", "5200kbps", "30.00", "h264", "01.23.1911", ""], val_int: []}
-    ];
+    in-out property <[SingleMainListModel]> similar_images_model: [];
+    in-out property <[SingleMainListModel]> similar_videos_model: [];
     in-out property <[SingleMainListModel]> similar_music_model: [];
     in-out property <[SingleMainListModel]> invalid_symlinks_model: [];
     in-out property <[SingleMainListModel]> broken_files_model: [];

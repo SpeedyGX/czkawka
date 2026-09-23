@@ -40,6 +40,54 @@ impl DebugPrintModelRc for ModelRc<SingleMainListModel> {
 
 // TODO - tests
 // Removes orphan items in groups
+pub(crate) fn remove_single_items_in_groups_simpler(mut items: Vec<SimplerSingleMainListModel>, have_header: bool) -> Vec<SimplerSingleMainListModel> {
+    if have_header && !items.is_empty() {
+        assert!(items[0].header_row);
+        assert!(!items[0].checked);
+        assert!(!items[0].selected_row);
+        let is_filled_header = items[0].filled_header_row;
+
+        if is_filled_header && items.len() <= 2 {
+            if items.len() == 2 {
+                if items[1].header_row {
+                    items.clear();
+                }
+            } else {
+                items.clear();
+            }
+        } else if !is_filled_header && items.len() <= 3 {
+            if items.len() == 3 {
+                if items[1].header_row || items[2].header_row {
+                    items.clear();
+                }
+            } else {
+                items.clear();
+            }
+        } else {
+            let header_step = if is_filled_header { 1 } else { 2 };
+
+            let mut last_header = 0;
+            let mut new_items: Vec<SimplerSingleMainListModel> = Vec::new();
+            for i in 1..items.len() {
+                if items[i].header_row {
+                    if i - last_header > header_step {
+                        new_items.extend(items[last_header..i].iter().cloned());
+                    }
+                    last_header = i;
+                }
+            }
+            if items.len() - last_header > header_step {
+                new_items.extend(items[last_header..].iter().cloned());
+            }
+
+            items = new_items;
+        }
+    }
+
+    items
+}
+
+// Removes orphan items in groups
 pub(crate) fn remove_single_items_in_groups(mut items: Vec<SingleMainListModel>, have_header: bool) -> Vec<SingleMainListModel> {
     // When have header, we must also throw out orphaned items
     if have_header && !items.is_empty() {

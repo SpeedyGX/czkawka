@@ -183,7 +183,7 @@ pub(crate) fn connect_settings(gui_data: &GuiData) {
                                     HashAlg::Mean,
                                     HashAlg::Median,
                                 ] {
-                                    let file_name = get_similar_images_cache_file(hash_size, hash_alg, image_filter);
+                                    let file_name = get_similar_images_cache_file(hash_size, hash_alg, image_filter, czkawka_core::tools::similar_images::GeometricInvariance::Off);
                                     let (mut messages, loaded_items) =
                                         load_cache_from_file_generalized_by_path::<czkawka_core::tools::similar_images::ImagesEntry>(&file_name, true, &Default::default());
 

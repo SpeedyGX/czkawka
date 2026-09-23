@@ -9,6 +9,7 @@ use czkawka_core::common::image::{ImgResizeOptions, get_dynamic_image_from_path,
 use czkawka_core::re_exported::FirFilterType;
 use image::GenericImageView;
 use log::error;
+use rayon::prelude::*;
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
 
 use crate::common::StrDataSimilarImages;
@@ -309,66 +310,57 @@ fn open_group(app: &MainWindow, header_idx: usize) {
     let weak = app.as_weak();
 
     thread::spawn(move || {
-        let mut raw_items: Vec<RawCompareItem> = Vec::with_capacity(rows.len());
-
-        for (i, (flat_idx, checked, strs)) in rows.iter().enumerate() {
-            if cancel.load(Ordering::Relaxed) {
-                let weak_c = weak.clone();
-                weak_c
-                    .upgrade_in_event_loop(move |app| {
-                        let gs = app.global::<GuiState>();
-                        gs.set_compare_loading(false);
-                        gs.set_compare_cancelling(false);
-                        gs.set_compare_visible(false);
-                    })
-                    .expect("Failed to upgrade app :(");
-                return;
-            }
-
-            let dir = strs
-                .get(StrDataSimilarImages::Path as usize)
-                .cloned()
-                .expect("SimilarImages row must contain a Path column");
-            let name = strs
-                .get(StrDataSimilarImages::Name as usize)
-                .cloned()
-                .expect("SimilarImages row must contain a Name column");
-            let full_path = format!("{dir}/{name}");
-            let thumbnail = load_raw_thumbnail(&full_path);
-
-            raw_items.push(RawCompareItem {
-                path: full_path,
-                dir: dir.clone(),
-                name,
-                size: strs
-                    .get(StrDataSimilarImages::Size as usize)
-                    .cloned()
-                    .expect("SimilarImages row must contain a Size column"),
-                resolution: strs
-                    .get(StrDataSimilarImages::Resolution as usize)
-                    .cloned()
-                    .expect("SimilarImages row must contain a Resolution column"),
-                modification_date: strs
-                    .get(StrDataSimilarImages::ModificationDate as usize)
-                    .cloned()
-                    .expect("SimilarImages row must contain a ModificationDate column"),
-                similarity: strs
-                    .get(StrDataSimilarImages::Similarity as usize)
-                    .cloned()
-                    .expect("SimilarImages row must contain a Similarity column"),
-                checked: *checked,
-                thumbnail,
-                flat_idx: *flat_idx as i32,
-            });
-
-            let current = i as i32 + 1;
-            let weak_c = weak.clone();
-            weak_c
-                .upgrade_in_event_loop(move |app| {
-                    app.global::<GuiState>().set_compare_loading_current(current);
-                })
-                .expect("Failed to upgrade app :(");
+        if cancel.load(Ordering::Relaxed) {
+            weak.upgrade_in_event_loop(move |app| {
+                let gs = app.global::<GuiState>();
+                gs.set_compare_loading(false);
+                gs.set_compare_cancelling(false);
+                gs.set_compare_visible(false);
+            })
+            .expect("Failed to upgrade app :(");
+            return;
         }
+
+        let raw_items: Vec<RawCompareItem> = rows
+            .par_iter()
+            .map(|(flat_idx, checked, strs)| {
+                let dir = strs
+                    .get(StrDataSimilarImages::Path as usize)
+                    .cloned()
+                    .expect("SimilarImages row must contain a Path column");
+                let name = strs
+                    .get(StrDataSimilarImages::Name as usize)
+                    .cloned()
+                    .expect("SimilarImages row must contain a Name column");
+                let full_path = format!("{dir}/{name}");
+                let thumbnail = load_raw_thumbnail(&full_path);
+
+                RawCompareItem {
+                    path: full_path,
+                    dir: dir.clone(),
+                    name,
+                    size: strs
+                        .get(StrDataSimilarImages::Size as usize)
+                        .cloned()
+                        .expect("SimilarImages row must contain a Size column"),
+                    resolution: strs
+                        .get(StrDataSimilarImages::Resolution as usize)
+                        .cloned()
+                        .expect("SimilarImages row must contain a Resolution column"),
+                    modification_date: strs
+                        .get(StrDataSimilarImages::ModificationDate as usize)
+                        .cloned()
+                        .expect("SimilarImages row must contain a ModificationDate column"),
+                    similarity: strs
+                        .get(StrDataSimilarImages::Similarity as usize)
+                        .cloned()
+                        .expect("SimilarImages row must contain a Similarity column"),
+                    checked: *checked,
+                    thumbnail,
+                    flat_idx: *flat_idx as i32,
+                }
+            })
+            .collect();
 
         let left_idx_slint = 0i32;
         let right_idx_slint = (raw_items.len() as i32 - 1).min(1);

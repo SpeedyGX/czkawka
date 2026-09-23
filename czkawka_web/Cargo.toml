@@ -2,6 +2,7 @@
 name = "czkawka_web"
 version = "11.0.1"
 edition = "2024"
+rust-version = "1.92.0"
 
 [[bin]]
 name = "czkawka_web"
@@ -22,3 +23,6 @@ uuid = { version = "1", features = ["v4"] }
 image = "0.25"
 itertools = "0.14"
 rust-embed = "8"
+
+[lints]
+workspace = true

@@ -20,7 +20,7 @@ struct BrowseEntry {
 pub(crate) async fn handle_browse(
     Query(params): Query<HashMap<String, String>>,
 ) -> Json<serde_json::Value> {
-    let raw_path = params.get("path").map(String::as_str).unwrap_or("/");
+    let raw_path = params.get("path").map_or("/", String::as_str);
 
     // Security: reject `..` path components to prevent directory traversal.
     if raw_path.split(std::path::MAIN_SEPARATOR).any(|c| c == "..") {
@@ -74,7 +74,7 @@ pub(crate) async fn handle_browse(
         match entry {
             Ok(e) => {
                 let name = e.file_name().to_string_lossy().to_string();
-                let is_dir = e.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+                let is_dir = e.file_type().is_ok_and(|ft| ft.is_dir());
                 let full_path = e.path().to_string_lossy().to_string();
                 entries.push(BrowseEntry { name, is_dir, path: full_path });
             }
@@ -96,14 +96,14 @@ pub(crate) async fn handle_browse(
 
     // Prepend parent-directory navigation entry ("..") when not at root.
     let mut display_entries = Vec::new();
-    if let Some(parent) = path.parent() {
-        if parent.as_os_str() != "" {
-            display_entries.push(BrowseEntry {
-                name: "..".to_string(),
-                is_dir: true,
-                path: parent.to_string_lossy().to_string(),
-            });
-        }
+    if let Some(parent) = path.parent()
+        && parent.as_os_str() != ""
+    {
+        display_entries.push(BrowseEntry {
+            name: "..".to_string(),
+            is_dir: true,
+            path: parent.to_string_lossy().to_string(),
+        });
     }
     display_entries.extend(entries);
 

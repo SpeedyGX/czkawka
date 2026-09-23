@@ -65,6 +65,9 @@ export global Settings {
     in-out property <[string]> similar_images_sub_available_hash_type: ["Mean", "Gradient", "BlockHash", "VertGradient", "DoubleGradient", "Median"];
     in-out property <int> similar_images_sub_hash_alg_index: 10;
     in-out property <string> similar_images_sub_hash_alg_value: "Gradient";
+    in-out property <[string]> similar_images_sub_available_geometric_invariance: ["Off", "Mirror + Flip", "Mirror + Flip + Rotate 90"];
+    in-out property <int> similar_images_sub_geometric_invariance_index: 0;
+    in-out property <string> similar_images_sub_geometric_invariance_value: "Off";
     in-out property <float> similar_images_sub_max_similarity: 40;
     in-out property <float> similar_images_sub_current_similarity: 20;
     in-out property <bool> similar_images_sub_ignore_same_size: false;
@@ -103,6 +106,21 @@ export global Settings {
     in-out property <string> similar_videos_crop_detect_value: "letterbox";
     in-out property <int> similar_videos_crop_detect_index: 0;
 
+    in-out property <bool> similar_videos_audio_check_content: false;
+    in-out property <[string]> similar_videos_audio_preset_names: ["Custom", "Identical videos", "Clip in longer video", "Similar content"];
+    in-out property <string> similar_videos_audio_preset_value: "Custom";
+    in-out property <int> similar_videos_audio_preset_index: 0;
+    in-out property <float> similar_videos_audio_similarity_percent: 80.0;
+    in-out property <float> similar_videos_audio_similarity_percent_min: 0.0;
+    in-out property <float> similar_videos_audio_similarity_percent_max: 100.0;
+    in-out property <float> similar_videos_audio_length_ratio: 0.1;
+    in-out property <float> similar_videos_audio_length_ratio_min: 0.0;
+    in-out property <float> similar_videos_audio_length_ratio_max: 1.0;
+    in-out property <float> similar_videos_audio_min_duration_seconds: 10.0;
+    in-out property <float> similar_videos_audio_min_duration_seconds_max: 600.0;
+    in-out property <float> similar_videos_audio_maximum_difference: 3.0;
+    in-out property <float> similar_videos_audio_maximum_difference_max: 10.0;
+
 
     // Same Music
     in-out property <[string]> similar_music_sub_audio_check_type: ["Tags", "Fingerprint"];
@@ -128,6 +146,8 @@ export global Settings {
     in-out property <bool> broken_files_sub_image: false;
     in-out property <bool> broken_files_sub_video_ffprobe: false;
     in-out property <bool> broken_files_sub_video_ffmpeg: false;
+    in-out property <bool> broken_files_sub_font: false;
+    in-out property <bool> broken_files_sub_markup: false;
 
     // Bad Names
     in-out property <bool> bad_names_sub_uppercase_extension: true;

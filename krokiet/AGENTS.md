@@ -16,19 +16,20 @@ krokiet/
 ├── src/
 │   ├── main.rs                       # Entry point: load settings, create MainWindow,
 │   │                                  #   wire all callbacks, run event loop
-│   ├── shared_models.rs              # SharedModels – Arc<Mutex<…>> of all tool results
+│   ├── shared_models.rs              # SharedModels – Arc<RwLock<…>> of all tool results
 │   ├── common.rs                     # Column index enums (IntDataDuplicateFiles, …)
-│   │                                  #   and sort index helpers
+│   │                                  #   and sort index helpers (635 lines)
+│   ├── active_tab_meta.rs            # Tool metadata (icon path, tool title, supported actions)
 │   ├── localizer_krokiet.rs          # flk! macro, LANGUAGE_LOADER_KROKIET
 │   ├── set_initial_gui_info.rs       # Asserts Slint combo lists == Rust enums
 │   ├── set_initial_scroll_list_data_indexes.rs
 │   ├── simpler_model.rs              # Minimal serializable row struct for threading
-│   ├── audio_player.rs               # Play sound on scan completion
+│   ├── audio_player.rs               # Play sound on scan completion (optional `audio` feature)
 │   ├── notification_manager.rs       # Desktop notifications
 │   ├── create_calculate_task_size.rs # Background total-size calculator
 │   ├── clear_outdated_video_thumbnails.rs
 │   ├── connect_scan.rs               # Routes scan to per-tool functions
-│   ├── connect_scan/                 # One file per tool (duplicate.rs, …)
+│   ├── connect_scan/                 # One file per tool (14 files)
 │   ├── connect_progress_receiver.rs  # Receives ProgressData → updates UI bar
 │   ├── connect_row_selection.rs      # Row checkbox logic, group handling
 │   ├── connect_sort.rs               # Column-header sort (string + int indices)
@@ -39,6 +40,8 @@ krokiet/
 │   ├── connect_save.rs               # Export results via PrintResults
 │   ├── connect_show_confirmation.rs  # Confirmation popup before destructive action
 │   ├── connect_directories_changes.rs
+│   ├── connect_filter.rs             # Extension/excluded-items filter UI
+│   ├── connect_metadata.rs           # File metadata display
 │   ├── connect_clean_cache.rs
 │   ├── connect_tab_changed.rs
 │   ├── connect_stop.rs               # Sets stop_flag = true
@@ -57,6 +60,7 @@ krokiet/
 │   ├── model_operations/
 │   │   ├── mod.rs                    # Slint model ↔ thread-safe model conversion
 │   │   └── model_processor.rs        # Parallel item processing framework
+│   ├── test_common.rs                # #[cfg(test)] test utilities
 │   └── settings/
 │       ├── mod.rs                    # Load/save JSON settings (11 presets)
 │       ├── model.rs                  # BasicSettings, SettingsCustom structs
@@ -126,15 +130,41 @@ Reference: Slint issue [#11021](https://github.com/slint-ui/slint/issues/11021).
 pub struct SharedModels {
     pub shared_duplication_state:       Option<DuplicateFinder>,
     pub shared_empty_folders_state:     Option<EmptyFolder>,
-    // … one field per tool (14 total)
+    pub shared_empty_files_state:       Option<EmptyFiles>,
+    pub shared_temporary_files_state:   Option<Temporary>,
+    pub shared_big_files_state:         Option<BigFile>,
+    pub shared_similar_images_state:    Option<SimilarImages>,
+    pub shared_similar_videos_state:    Option<SimilarVideos>,
+    pub shared_same_music_state:        Option<SameMusic>,
+    pub shared_same_invalid_symlinks:   Option<InvalidSymlinks>,
+    pub shared_broken_files_state:      Option<BrokenFiles>,
+    pub shared_bad_extensions_state:    Option<BadExtensions>,
+    pub shared_bad_names_state:         Option<BadNames>,
+    pub shared_exif_remover_state:      Option<ExifRemover>,
+    pub shared_video_optimizer_state:   Option<VideoOptimizer>,
 }
 ```
 
-Created once in `main.rs` as `Arc<Mutex<SharedModels>>`, cloned and passed to
+Created once in `main.rs` as `Arc<RwLock<SharedModels>>`, cloned and passed to
 every callback that needs scan results (preview, compare, save, delete, …).
 
-Worker threads lock exclusively to **write** results after a scan finishes.
-UI callbacks lock briefly to **read** results for previews / exports.
+Worker threads lock exclusively (`write()`) to store results after a scan finishes.
+UI callbacks lock briefly (`read()`) to access results for previews / exports.
+The `SharedModels::new_shared()` helper wraps the constructor in `Arc::new(RwLock::new(…))`.
+
+### Convenience methods
+
+`SharedModels` provides `get_<tool>_ref()` and `get_<tool>_ref_mut()` accessor methods
+wired to the current `ActiveTab`, so callbacks don't need to match on the tab enum
+manually:
+
+```rust
+impl SharedModels {
+    pub fn get_duplicate_state_ref(&self, active_tab: ActiveTab) -> Option<&DuplicateFinder>;
+    pub fn get_similar_images_state_ref(&self, active_tab: ActiveTab) -> Option<&SimilarImages>;
+    // … one pair per tool
+}
+```
 
 ---
 
@@ -210,6 +240,94 @@ from Rust enums; used both for settings serialization and UI initialization.
 
 ---
 
+## Main Initialization Flow (`main.rs`)
+
+The entry point follows a fixed order. Understanding this order is essential when
+adding new features:
+
+```
+1. register_image_decoding_hooks()        # Image format support (via czkawka_core)
+2. set_config_cache_path("Czkawka", "Krokiet")
+3. process_cli_args()                     # CLI overrides: paths, tool (-t), preset (-p), scan (-s), exit (-x)
+4. load_initial_settings_from_file()      # Read base.json + preset_N.json
+5. setup_logger() / print_version_mode()
+6. create_default_settings_files()        # Ensure config files exist
+7. MainWindow::new()                      # Slint window — may fail (show critical error)
+8. zeroing_all_models(&app)               # Set all 14 models to empty VecModel
+9. SharedModels::new_shared()             # Arc<RwLock<SharedModels>>
+10. AudioPlayer::new()                    # Optional (audio feature)
+11. set_initial_gui_infos(&app)           # Sync Slint combo lists with Rust enums
+12. set_initial_settings_to_gui(&app, …)  # Populate all Slint globals from JSON
+13. update_available_hardware_encoders()  # Background thread: probe FFmpeg HW encoders
+
+// Wire all callbacks (order matters — some depend on prior state):
+14. connect_delete_button() / connect_trash_button()
+15. connect_scan_button()
+16. connect_stop_button()
+17. connect_open_items()
+18. connect_progress_gathering()
+19. connect_add_remove_directories()
+20. connect_filter()
+21. connect_show_preview()
+22. connect_compare()
+23. connect_translations()
+24. connect_changing_settings_preset()
+25. connect_select()
+26. connect_move() / connect_rename() / connect_optimize_video() / connect_clean_exif()
+27. connect_hardlink() / connect_symlink()
+28. connect_save()
+29. connect_row_selections()
+30. connect_sort() / connect_sort_column()
+31. connect_tab_changed()
+32. create_calculate_task_size()
+33. connect_clean_cache()
+34. connect_show_confirmation()
+
+35. clear_outdated_video_thumbnails()
+36. app.invoke_initialize_popup_sizes()   # Force popups to measure their size once
+37. app.run()                             # Slint event loop — BLOCKS until window closes
+38. save_all_settings_to_file()           # Persist on clean exit
+```
+
+### CLI-driven start scan
+
+`process_cli_args()` (in `czkawka_core::common::basic_gui_cli`) also recognises `-t/--tool TOOL`,
+`-p/--preset N`, `-s/--scan` and `-x/--exit`. When `--scan` is given, `main.rs` selects the
+requested tool tab (`ActiveTab::from_tool_type`), aborts with an error if no non-referenced
+included folder is configured, and — right before `app.run()` — sets `scanning` and calls
+`invoke_scan_starting()`. `--exit` (requires `--scan`) runs a 200 ms timer that quits the event
+loop once `scanning` turns false. Launching with none of these arguments keeps the previous
+behaviour.
+
+### Generated Slint Code Wrapper
+
+Slint-generated code uses `unwrap()` and indexing in some callbacks. To avoid
+cluttering the entire crate with clippy allows, the generated code is wrapped:
+
+```rust
+// main.rs
+mod generated_slint_code {
+    #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
+    slint::include_modules!();
+}
+pub use generated_slint_code::*;
+```
+
+### `zeroing_all_models()`
+
+Sets all 14 tool models to empty `VecModel` before the event loop starts. Each
+tool has a dedicated setter on `MainWindow` (e.g., `app.set_duplicate_files_model()`).
+Must be updated when adding a new tool.
+
+### Hardware Encoder Probe
+
+`update_available_hardware_encoders()` runs in a **background thread** with per-encoder
+timeouts (driver initialization can hang). Results are sent back via
+`slint::invoke_from_event_loop()` and the `Settings.video_optimizer_sub_hardware_encoder_*`
+combo box is updated to only show working encoders.
+
+---
+
 ## Callback Registration Pattern
 
 ```rust
@@ -229,7 +347,7 @@ Cross-thread updates use `weak.upgrade_in_event_loop(|app| { … })`.
 
 | Crate | Purpose |
 |-------|---------|
-| `slint` 1.15 | UI framework (GPL-3.0) |
+| `slint` 1.17 | UI framework (GPL-3.0) |
 | `czkawka_core` | Scanning engine |
 | `i18n-embed` + `rust-embed` | Fluent translations |
 | `crossbeam-channel` | Progress + result channels |
@@ -252,3 +370,9 @@ Cross-thread updates use `weak.upgrade_in_event_loop(|app| { … })`.
 
 `build.rs` compiles `ui/main_window.slint` with style `fluent-dark` (overridable
 via `SLINT_STYLE` env var).
+
+---
+
+## Child DOX Index
+
+None (leaf node — internal modules `connect_scan/`, `file_actions/`, `settings/`, `model_operations/`, `connect_select/` are not durable boundaries).

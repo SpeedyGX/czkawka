@@ -1,7 +1,9 @@
+use std::cell::RefCell;
 use std::fs::metadata;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
+use std::thread;
 
 use czkawka_core::common::config_cache_path::get_config_cache_path;
 use czkawka_core::common::consts::VIDEO_FILES_EXTENSIONS;
@@ -10,7 +12,7 @@ use czkawka_core::common::video_utils::{generate_thumbnail, VIDEO_THUMBNAILS_SUB
 use czkawka_core::helpers::debug_timer::Timer;
 use czkawka_core::helpers::ffprobe::ffprobe;
 use czkawka_core::re_exported::FirFilterType;
-use image::{DynamicImage, Rgba, RgbaImage};
+use image::{DynamicImage, Rgba};
 use log::{debug, error};
 use slint::ComponentHandle;
 
@@ -19,6 +21,19 @@ use crate::shared_models::SharedModels;
 use crate::{ActiveTab, Callabler, GuiState, MainWindow, Settings};
 
 pub type ImageBufferRgba = image::ImageBuffer<image::Rgba<u8>, Vec<u8>>;
+
+thread_local! {
+    static PREVIEW_GENERATION: RefCell<Arc<AtomicU64>> =
+        RefCell::new(Arc::new(AtomicU64::new(0)));
+}
+
+fn next_preview_gen() -> (Arc<AtomicU64>, u64) {
+    PREVIEW_GENERATION.with(|g| {
+        let arc = g.borrow().clone();
+        let gen_val = arc.fetch_add(1, Ordering::Relaxed) + 1;
+        (arc, gen_val)
+    })
+}
 
 pub(crate) fn connect_show_preview(app: &MainWindow, shared_models: Arc<RwLock<SharedModels>>) {
     // Register model metadata callback
@@ -80,8 +95,6 @@ pub(crate) fn connect_show_preview(app: &MainWindow, shared_models: Arc<RwLock<S
                 return;
             }
 
-            let path = Path::new(image_path.as_str());
-
             let images_in_thumbnails_line = if active_tab == ActiveTab::VideoOptimizer {
                 shared_models
                     .read()
@@ -93,38 +106,59 @@ pub(crate) fn connect_show_preview(app: &MainWindow, shared_models: Arc<RwLock<S
                 1
             };
 
-            if let Some((mut timer, img)) = load_image(path) {
-                let mut img_to_use = img.into_rgba8();
+            let (gen_counter, gen_val) = next_preview_gen();
 
-                if crop_left != -1 && crop_top != -1 && crop_right != -1 && crop_bottom != -1 && orig_width > 0 && orig_height > 0 {
-                    img_to_use = draw_crop_rectangle_on_image(
-                        img_to_use,
-                        crop_left,
-                        crop_top,
-                        crop_right,
-                        crop_bottom,
-                        orig_width as u32,
-                        orig_height as u32,
-                        images_in_thumbnails_line as u32,
-                    );
-                    timer.checkpoint("cropping image");
+            let weak = a.clone();
+            let image_path_clone = image_path.clone();
+            thread::spawn(move || {
+                let result = {
+                    let path = Path::new(image_path_clone.as_str());
+                    load_image(path).map(|(mut timer, img)| {
+                        let mut img_to_use = img.into_rgba8();
+
+                        if crop_left != -1 && crop_top != -1 && crop_right != -1 && crop_bottom != -1 && orig_width > 0 && orig_height > 0 {
+                            img_to_use = draw_crop_rectangle_on_image(
+                                img_to_use,
+                                crop_left,
+                                crop_top,
+                                crop_right,
+                                crop_bottom,
+                                orig_width as u32,
+                                orig_height as u32,
+                                images_in_thumbnails_line as u32,
+                            );
+                            timer.checkpoint("cropping image");
+                        }
+
+                        let (width, height) = (img_to_use.width(), img_to_use.height());
+                        let raw_data = img_to_use.into_raw();
+                        timer.checkpoint("converting image to raw pixels");
+
+                        debug!("{}", timer.report("total", true));
+                        (raw_data, width, height)
+                    })
+                };
+
+                if gen_counter.load(Ordering::Relaxed) != gen_val {
+                    return;
                 }
 
-                let slint_image = convert_into_slint_image(&img_to_use);
-                timer.checkpoint("converting image to Slint image");
-
-                gui_state.set_preview_image(slint_image);
-                timer.checkpoint("setting image in GUI");
-
-                debug!("{}", timer.report("total", true));
-                set_preview_visible(&gui_state, Some(image_path.as_str()));
-                // Load basic file metadata (size, date) as fallback
-                load_file_metadata(&app, image_path.as_str());
-            } else {
-                set_preview_visible(&gui_state, None);
-                // Still try to load basic metadata even if image preview failed
-                load_file_metadata(&app, image_path.as_str());
-            }
+                weak.upgrade_in_event_loop(move |app| {
+                    if gen_counter.load(Ordering::Relaxed) != gen_val {
+                        return;
+                    }
+                    let gui_state = app.global::<GuiState>();
+                    if let Some((raw_data, width, height)) = result {
+                        let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(&raw_data, width, height);
+                        gui_state.set_preview_image(slint::Image::from_rgba8(buffer));
+                        set_preview_visible(&gui_state, Some(image_path_clone.as_str()));
+                    } else {
+                        set_preview_visible(&gui_state, None);
+                    }
+                    load_file_metadata(&app, image_path_clone.as_str());
+                })
+                .expect("Failed to upgrade app :(");
+            });
         });
 }
 
@@ -175,11 +209,6 @@ fn set_preview_visible(gui_state: &GuiState, preview: Option<&str>) {
         gui_state.set_preview_image_path("".into());
         gui_state.set_preview_visible(false);
     }
-}
-
-fn convert_into_slint_image(img: &RgbaImage) -> slint::Image {
-    let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(img.as_raw(), img.width(), img.height());
-    slint::Image::from_rgba8(buffer)
 }
 
 fn load_image(image_path: &Path) -> Option<(Timer, DynamicImage)> {

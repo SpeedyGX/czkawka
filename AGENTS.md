@@ -67,6 +67,12 @@ If `just fix` produces any output on stderr or exits non-zero the code is not re
 
 ---
 
+## Line endings
+
+Tracked text files use Unix (LF) line endings, enforced by the root `.gitattributes` (`*.rs text eol=lf`, plus web assets). This matches the `newline_style = "Unix"` setting in `.rustfmt.toml`, so `cargo fmt --check` never fails on CRLF checkouts.
+
+---
+
 ## Workspace Structure
 
 ```
@@ -74,6 +80,7 @@ czkawka/
 ├── czkawka_core/   # Scanning logic – shared library used by all frontends
 ├── czkawka_cli/    # Command-line interface
 ├── czkawka_gui/    # Legacy GTK 4 GUI (maintenance mode only)
+├── czkawka_web/    # Web frontend – axum + vanilla JS, self-contained binary
 ├── krokiet/        # Primary desktop GUI – Slint-based
 ├── cedinia/        # Android / mobile GUI – Slint-based
 └── misc/           # Scripts: AI translation, validation, benchmarks, CI helpers
@@ -83,110 +90,12 @@ Cargo workspace resolver v3, minimum Rust 1.92.0, edition 2024 throughout.
 
 ---
 
-## czkawka_core
+## Crate documentation
 
-The shared scanning engine. Every frontend depends on it; it has no UI dependency.
-
-**Key modules:**
-- `common/` – `CommonToolData` (settings, stop-flag, progress sender), `DirTraversal`, cache,
-  extension filtering, path helpers, progress types.
-- `tools/` – One sub-module per scanning tool:
-  `duplicate`, `empty_folder`, `empty_files`, `big_file`, `similar_images`, `similar_videos`,
-  `same_music`, `broken_files`, `bad_extensions`, `bad_names`, `invalid_symlinks`, `temporary`,
-  `exif_remover`, `video_optimizer`.
-- `localizer_core.rs` – Fluent translation loader for Rust-side messages.
-
-Each tool implements the `CommonData` trait (shared settings access) and `PrintResults` (CSV/JSON
-export). The tool struct is constructed, configured, then its `find_*()` method is called in a
-worker thread. Progress is reported over a `crossbeam` channel; a stop `AtomicBool` is polled to
-support cancellation.
-
----
-
-## krokiet
-
-The primary desktop GUI. Built with [Slint](https://slint.dev/) (GPL-3.0). The UI is declared
-in `ui/*.slint`; Rust connects callbacks and drives the Slint model.
-
-**Build:** `slint_build` compiles `.slint` sources at build time; `slint::include_modules!()`
-exposes the generated types.
-
-**Entry point:** `src/main.rs`
-- Loads settings, creates `MainWindow`, wires up all callbacks, starts the event loop.
-
-**Callback pattern:**
-```rust
-let weak = app.as_weak();
-app.global::<Callabler>().on_some_action(move || {
-    let app = weak.upgrade().expect("MainWindow dropped while callback is still live");
-    // ...
-});
-```
-Each feature area lives in a dedicated `connect_*.rs` file (e.g. `connect_scan.rs`,
-`connect_compare.rs`, `connect_delete_button.rs`).
-
-**`SharedModels`** (`src/shared_models.rs`):
-An `Arc<Mutex<SharedModels>>` holds the last scan result and parameters of scan of each tool. It is passed to every
-`connect_*` function that needs to access or mutate scan state from a background thread.
-
-**Model layer:**
-- The Slint UI is driven by `ModelRc<VecModel<SingleMainListModel>>`.
-- `SingleMainListModel` carries `val_str: [string]` and `val_int: [int]` vectors – a flat,
-  index-based row representation.
-- Column indices for each tool are defined as constants in `src/common.rs`
-  (`StrDataSimilarImages`, `StrDataDuplicates`, …).
-
-**Translation:** `flk!("key")` / `flk!("key", var = value)` macros defined in
-`src/localizer_krokiet.rs`. Language files in `i18n/<lang-code>/krokiet.ftl`.
-
----
-
-## cedinia
-
-The Android (and secondary desktop) GUI. Architecture mirrors Krokiet but adapts to mobile
-constraints. Compiled as `cdylib` for Android (loaded via `android-activity`).
-
-**Entry points:**
-- Android: `#[no_mangle] pub fn android_main(app: AndroidApp)` in `src/lib.rs`
-- Desktop: `fn run_app()` in `src/app.rs`
-
-**Android-specific:**
-- File picker uses JNI to call into a Kotlin/Java helper embedded via `include_bytes!` (DEX).
-- Storage permissions requested at runtime; `AppState.storage_permission_granted` gates scanning.
-- System insets (`inset_top`, `inset_bottom`) plumbed through to Slint for edge-to-edge layout.
-- `android_logger` routes Rust log output to logcat.
-
-**Differences from Krokiet:**
-- No video tools (ffmpeg not available on Android).
-- Touch-optimised UI (`cedinia/ui/`); momentum-scroll views, bottom sheets, FAB.
-- `flc!` macro (cedinia-specific) in `src/localizer_cedinia.rs`.
-
-**Translation:** `flc!("key")` macro; language files in `cedinia/i18n/<lang-code>/cedinia.ftl`.
-
----
-
-## czkawka_cli
-
-Thin wrapper around `czkawka_core`. Uses `clap` (derive API) for argument parsing and `indicatif`
-for progress bars. No GUI code. Results printed via the tool's `PrintResults` trait.
-
----
-
-## czkawka_gui
-
-Legacy GTK 4 GUI. **Maintenance mode only** – no new features are added. Bug-fixes that
-keep it compatible with core API changes are accepted.
-
----
-
-## misc/
-
-- `ai_translate/translate.py` – AI-powered batch translation into all supported languages.
-- `ai_translate/validate_translations.py` – Checks placeholder consistency across translations.
-  Pass `--fix` to automatically remove invalid entries.
-- `find_unused_fluent_translations.py` / `find_unused_slint_translations.py` – Dead-code
-  detection for translation keys.
-- `gen_cedinia_licenses.py` – Generates `THIRD_PARTY_LICENSES.txt` from Cargo metadata.
+Root keeps only project-wide rules: language, comments, panic policy, project goals, the `just fix`
+quality gate, line endings, i18n, Slint UI conventions, build profiles and the justfile reference.
+Each crate's internals — architecture, source layout, local contracts, work guidance and
+verification — live in that crate's own AGENTS.md; see the Child DOX Index at the end of this file.
 
 ---
 
@@ -215,8 +124,8 @@ All other language files are managed through [Crowdin](https://crowdin.com/) and
 - **Hidden Text elements for width measurement** – where a layout element must adapt its width to
   translated label text, add off-screen `Text` instances (`x: -10000px; y: -10000px; height: 0`)
   and compute `preferred-width` at runtime (see `LeftSidePanel`, `CompareInfoBar`).
-- **Enums over strings** – UI state that takes a fixed set of values should use a Slint `enum`,
-  not a `string` (e.g. `ConfirmPopupAction`, `ActiveTool`, `ScanState`).
+- **Enums over strings** – UI state that takes a fixed set of values should use a Slint `enum`, not
+  a `string` (e.g. `ConfirmPopupAction`, `ActiveTool`, `ScanState`).
 - **Global state** – Application-wide state lives in Slint `global` blocks (`GuiState`,
   `AppState`, `Settings`, `Translations`, …). Rust reads/writes via `app.global::<GlobalName>()`.
 
@@ -246,4 +155,112 @@ just pack_translations    # create i18n_translations.zip for Crowdin
 just unpack_translations <path>
 just android              # build + install + launch on device
 just androidr             # release variant
+just run-web              # debug run web frontend
+just runr-web             # fast_release run web frontend
+just docker-web           # Docker build web frontend
 ```
+---
+
+# DOX framework
+
+- DOX is highly performant AGENTS.md hierarchy installed here
+- Agent must follow DOX instructions across any edits
+
+## Core Contract
+
+- AGENTS.md files are binding work contracts for their subtrees
+- Work products, source materials, instructions, records, assets, and durable docs must stay understandable from the nearest applicable AGENTS.md plus every parent AGENTS.md above it
+
+## Read Before Editing
+
+1. Read the root AGENTS.md
+2. Identify every file or folder you expect to touch
+3. Walk from the repository root to each target path
+4. Read every AGENTS.md found along each route
+5. If a parent AGENTS.md lists a child AGENTS.md whose scope contains the path, read that child and continue from there
+6. Use the nearest AGENTS.md as the local contract and parent docs for repo-wide rules
+7. If docs conflict, the closer doc controls local work details, but no child doc may weaken DOX
+
+Do not rely on memory. Re-read the applicable DOX chain in the current session before editing.
+
+## Update After Editing
+
+Every meaningful change requires a DOX pass before the task is done.
+
+Update the closest owning AGENTS.md when a change affects:
+
+- purpose, scope, ownership, or responsibilities
+- durable structure, contracts, workflows, or operating rules
+- required inputs, outputs, permissions, constraints, side effects, or artifacts
+- user preferences about behavior, communication, process, organization, or quality
+- AGENTS.md creation, deletion, move, rename, or index contents
+
+Update parent docs when parent-level structure, ownership, workflow, or child index changes. Update child docs when parent changes alter local rules. Remove stale or contradictory text immediately. Small edits that do not change behavior or contracts may leave docs unchanged, but the DOX pass still must happen.
+
+## Hierarchy
+
+- Root AGENTS.md is the DOX rail: project-wide instructions, global preferences, durable workflow rules, and the top-level Child DOX Index
+- Child AGENTS.md files own domain-specific instructions and their own Child DOX Index
+- Each parent explains what its direct children cover and what stays owned by the parent
+- The closer a doc is to the work, the more specific and practical it must be
+
+## Child Doc Shape
+
+- Create a child AGENTS.md when a folder becomes a durable boundary with its own purpose, rules, responsibilities, workflow, materials, or quality standards
+- Work Guidance must reflect the current standards of the project or user instructions; if there are no specific standards or instructions yet, leave it empty
+- Verification must reflect an existing check; if no verification framework exists yet, leave it empty and update it when one exists
+
+Default section order:
+- Purpose
+- Ownership
+- Local Contracts
+- Work Guidance
+- Verification
+- Child DOX Index
+
+## Style
+
+- Keep docs concise, current, and operational
+- Document stable contracts, not diary entries
+- Put broad rules in parent docs and concrete details in child docs
+- Prefer direct bullets with explicit names
+- Do not duplicate rules across many files unless each scope needs a local version
+- Delete stale notes instead of explaining history
+- Trim obvious statements, repeated rules, misplaced detail, and warnings for risks that no longer exist
+
+## Closeout
+
+1. Re-check changed paths against the DOX chain
+2. Update nearest owning docs and any affected parents or children
+3. Refresh every affected Child DOX Index
+4. Remove stale or contradictory text
+5. Run existing verification when relevant
+6. Report any docs intentionally left unchanged and why
+
+## User Preferences
+
+- Web UI work targets the **modern UI** ([`czkawka_web/web/v2/`](czkawka_web/web/v2/)) by default.
+  The **classic** UI ([`czkawka_web/web/`](czkawka_web/web/)) is maintenance-only and is modified
+  only when the user explicitly asks for it.
+- When the user requests a durable behavior change, record it here or in the relevant child AGENTS.md
+
+## Child DOX Index
+
+| Path | AGENTS.md | Scope | Type |
+|------|-----------|-------|------|
+| [`czkawka_core/`](czkawka_core/) | [`czkawka_core/AGENTS.md`](czkawka_core/AGENTS.md) | Shared scanning engine — 14 tools, common infrastructure, no UI | Leaf |
+| [`krokiet/`](krokiet/) | [`krokiet/AGENTS.md`](krokiet/AGENTS.md) | Primary desktop GUI — Slint-based, 14 tools, GPL-3.0 | Leaf |
+| [`cedinia/`](cedinia/) | [`cedinia/AGENTS.md`](cedinia/AGENTS.md) | Android / mobile GUI — Slint-based, 11 tools, JNI, GPL-3.0 | Leaf |
+| [`czkawka_cli/`](czkawka_cli/) | [`czkawka_cli/AGENTS.md`](czkawka_cli/AGENTS.md) | CLI frontend — clap + indicatif, 14 tools, MIT | Leaf |
+| [`czkawka_gui/`](czkawka_gui/) | [`czkawka_gui/AGENTS.md`](czkawka_gui/AGENTS.md) | Legacy GTK 4 GUI — maintenance mode only, 11 tools, MIT | Leaf |
+| [`czkawka_web/`](czkawka_web/) | [`czkawka_web/AGENTS.md`](czkawka_web/AGENTS.md) | Web frontend — axum + vanilla JS, 4 tools, self-contained binary | Leaf |
+| [`misc/`](misc/) | [`misc/AGENTS.md`](misc/AGENTS.md) | Supporting scripts — AI translation, validation, CI helpers, benchmarks | Leaf |
+
+Directories without child AGENTS.md (not durable boundaries):
+- [`data/`](data/) — Linux desktop integration files (`.desktop`, AppStream, icons)
+- [`docs/`](docs/) — Project documentation ([`docs/README.md`](docs/README.md) is the master index)
+- [`instructions/`](instructions/) — User documentation (manual, translation guide)
+- [`plans/`](plans/) — Archived implementation plans
+- [`ci_tester/`](ci_tester/) — Minimal CLI integration test runner
+- [`.cargo/`](.cargo/) — Cargo config (`config.toml`)
+- [`.github/`](.github/) — CI/CD workflows and issue templates

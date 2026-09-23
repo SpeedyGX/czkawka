@@ -102,6 +102,9 @@ RUN chmod +x /entrypoint.sh
 # Override with CZKAWKA_ADDRESS / CZKAWKA_PORT env vars at runtime.
 EXPOSE 8095
 
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget -qO- http://localhost:8095/api/health || exit 1
+
 VOLUME /data
 
 ENTRYPOINT ["/entrypoint.sh"]

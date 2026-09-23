@@ -13,7 +13,7 @@ use fun_time::fun_time;
 use humansize::{BINARY, format_size};
 use indexmap::IndexMap;
 use log::{debug, error};
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
@@ -26,7 +26,7 @@ use crate::helpers::messages::Messages;
 
 pub(crate) const CACHE_VERSION: u8 = 100;
 pub(crate) const CACHE_DUPLICATE_VERSION: u8 = 100;
-pub(crate) const CACHE_IMAGE_VERSION: u8 = 100;
+pub(crate) const CACHE_IMAGE_VERSION: u8 = 101;
 pub(crate) const CACHE_VIDEO_VERSION: u8 = 110;
 pub(crate) const CACHE_BROKEN_FILES_VERSION: u8 = 120;
 pub(crate) const CACHE_VIDEO_OPTIMIZE_VERSION: u8 = 110;
@@ -34,7 +34,7 @@ pub(crate) const CACHE_VIDEO_OPTIMIZE_VERSION: u8 = 110;
 const MEMORY_LIMIT: u64 = 8 * 1024 * 1024 * 1024;
 const CLEANING_TIMESTAMPS_FILE: &str = "cleaning_timestamps.json";
 
-static CACHE_CLEANING_INTERVAL_SECONDS: Lazy<u64> = Lazy::new(|| {
+static CACHE_CLEANING_INTERVAL_SECONDS: LazyLock<u64> = LazyLock::new(|| {
     option_env!("CZKAWKA_CACHE_CLEANING_INTERVAL_SECONDS")
         .and_then(|s| s.parse::<u64>().ok())
         .unwrap_or(7 * 24 * 60 * 60)
@@ -105,6 +105,30 @@ pub(crate) fn extract_loaded_cache<T>(
             non_cached_files_to_check.insert(name, file_entry);
         }
     }
+}
+
+pub(crate) fn resolve_inode_cache_entries<T: Clone + ResultEntry>(
+    loaded_hash_map: &BTreeMap<String, T>,
+    non_cached_files_to_check: BTreeMap<String, T>,
+    records_already_cached: &mut BTreeMap<String, T>,
+    on_cache_hit: impl Fn(&mut T, T),
+) -> BTreeMap<String, T> {
+    let mut remaining = BTreeMap::new();
+    for (name, file_entry) in non_cached_files_to_check {
+        if file_entry.get_inode() != 0 {
+            if let Some(cached_entry) = loaded_hash_map
+                .values()
+                .find(|cached| cached.get_inode() == file_entry.get_inode())
+            {
+                let mut cached = cached_entry.clone();
+                on_cache_hit(&mut cached, file_entry);
+                records_already_cached.insert(name, cached);
+                continue;
+            }
+        }
+        remaining.insert(name, file_entry);
+    }
+    remaining
 }
 
 #[fun_time(message = "load_cache_from_file_generalized_by_path", level = "debug")]

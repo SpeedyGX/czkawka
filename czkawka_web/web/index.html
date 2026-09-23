@@ -4,36 +4,47 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Czkawka Web</title>
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
 <div id="app">
     <header>
         <h1>Czkawka <span>Web</span></h1>
-        <nav id="tools"></nav>
+        <nav id="tools" role="navigation" aria-label="Tool selector"></nav>
+        <a class="ui-switch" href="/" title="Switch to the modern interface">Modern UI</a>
     </header>
 
-    <main>
+    <main role="main">
         <!-- Settings panel -->
-        <section id="settings-panel">
+        <section id="settings-panel" aria-label="Scan settings">
             <h2>Directories</h2>
             <div id="dirs">
                 <div id="included-dirs">
                     <label>Included paths:</label>
                     <div id="included-list"></div>
                     <div class="dir-add">
-                        <input type="text" id="new-included" placeholder="/home/user/Downloads">
-                        <button id="add-included">+</button>
-                        <button class="browse-btn" data-target="included">📁 Browse</button>
+                        <input type="text" id="new-included" placeholder="/home/user/Downloads" aria-label="New included path">
+                        <button id="add-included" aria-label="Add included path">+</button>
+                        <button class="browse-btn" data-target="included" aria-label="Browse for included directory">📁 Browse</button>
+                        <button class="recent-dirs-toggle" data-target="included" aria-label="Recent included directories" aria-expanded="false">🕐</button>
+                        <div class="recent-dirs-dropdown hidden" data-target="included">
+                            <div class="recent-dirs-list" data-target="included"></div>
+                            <button class="recent-dirs-clear" aria-label="Clear recent directories">Clear</button>
+                        </div>
                     </div>
                 </div>
                 <div id="excluded-dirs">
                     <label>Excluded paths:</label>
                     <div id="excluded-list"></div>
                     <div class="dir-add">
-                        <input type="text" id="new-excluded" placeholder="/home/user/temp">
-                        <button id="add-excluded">+</button>
-                        <button class="browse-btn" data-target="excluded">📁 Browse</button>
+                        <input type="text" id="new-excluded" placeholder="/home/user/temp" aria-label="New excluded path">
+                        <button id="add-excluded" aria-label="Add excluded path">+</button>
+                        <button class="browse-btn" data-target="excluded" aria-label="Browse for excluded directory">📁 Browse</button>
+                        <button class="recent-dirs-toggle" data-target="excluded" aria-label="Recent excluded directories" aria-expanded="false">🕐</button>
+                        <div class="recent-dirs-dropdown hidden" data-target="excluded">
+                            <div class="recent-dirs-list" data-target="excluded"></div>
+                            <button class="recent-dirs-clear" aria-label="Clear recent directories">Clear</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -42,57 +53,58 @@
             <div id="options">
                 <label><input type="checkbox" id="recursive" checked> Recursive</label>
                 <label><input type="checkbox" id="use-cache" checked> Use cache</label>
-                <label>Min size: <input type="number" id="min-size" value="1024" style="width:80px"> bytes</label>
+                <label>Min size: <input type="number" id="min-size" value="1024" style="width:80px" aria-label="Minimum file size in bytes"> bytes</label>
                 <div id="tool-options"></div>
             </div>
 
-            <button id="scan-btn">Scan</button>
-            <button id="stop-btn" style="display:none">Stop</button>
-            <div id="progress-bar" style="display:none">
+            <button id="scan-btn" aria-label="Start scan">Scan</button>
+            <button id="stop-btn" style="display:none" aria-label="Stop scan">Stop</button>
+            <div id="progress-bar" style="display:none" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Scan progress">
                 <div id="progress-fill"></div>
-                <span id="progress-text"></span>
+                <span id="progress-text" aria-live="polite"></span>
             </div>
         </section>
 
         <!-- Results panel -->
-        <section id="results-panel" style="display:none">
+        <section id="results-panel" style="display:none" aria-label="Scan results">
             <h2>Results <span id="results-summary"></span></h2>
             <div id="results-table-wrapper">
-                <table id="results-table">
+                <table id="results-table" role="table" aria-label="Results table">
                     <thead id="results-header"></thead>
                     <tbody id="results-body"></tbody>
                 </table>
             </div>
+            <div id="gallery-view" style="display:none" aria-label="Gallery view"></div>
             <div id="page-controls"></div>
             <div id="results-actions">
-                <button id="delete-btn">Delete Selected</button>
+                <button id="delete-btn" aria-label="Delete selected files">Delete Selected</button>
             </div>
         </section>
     </main>
 
-    <div id="status-bar"></div>
+    <div id="status-bar" role="status" aria-live="polite"></div>
 
     <!-- Folder browser modal -->
-    <div id="folder-browser-overlay" class="modal-overlay" style="display:none">
+    <div id="folder-browser-overlay" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-label="Browse folder">
         <div class="folder-browser">
             <div class="modal-header">
                 <span class="modal-title">Select Folder</span>
-                <button class="modal-close" id="folder-browser-close">✕</button>
+                <button class="modal-close" id="folder-browser-close" aria-label="Close folder browser">✕</button>
             </div>
             <div class="modal-body">
                 <div class="current-path-row">
-                    <input type="text" class="current-path" id="folder-browser-path" value="/">
+                    <input type="text" class="current-path" id="folder-browser-path" value="/" aria-label="Current folder path">
                 </div>
-                <div class="entry-list" id="folder-browser-entries"></div>
+                <div class="entry-list" id="folder-browser-entries" role="listbox" aria-label="Folder contents"></div>
                 <div class="loading" id="folder-browser-loading" style="display:none">Loading...</div>
-                <div class="error" id="folder-browser-error" style="display:none"></div>
+                <div class="error" id="folder-browser-error" style="display:none" role="alert"></div>
             </div>
             <div class="modal-footer">
-                <button class="select-btn" id="folder-browser-select">Select This Folder</button>
+                <button class="select-btn" id="folder-browser-select" aria-label="Select this folder">Select This Folder</button>
             </div>
         </div>
     </div>
 </div>
-<script src="app.js?v=3"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

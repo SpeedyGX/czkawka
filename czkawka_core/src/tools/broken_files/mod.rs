@@ -23,6 +23,8 @@ pub enum CheckedTypesSingle {
     Archive,
     VideoFfprobe,
     VideoFfmpeg,
+    Font,
+    Markup,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -74,6 +76,18 @@ pub enum TypeOfFile {
     Audio,
     Pdf,
     Video,
+    Archive7z,
+    ArchiveGz,
+    ArchiveTar,
+    ArchiveZst,
+    ArchiveBz2,
+    ArchiveXz,
+    Font,
+    Json,
+    Xml,
+    Toml,
+    Yaml,
+    Svg,
 }
 
 bitflags! {
@@ -87,6 +101,8 @@ bitflags! {
         const ARCHIVE = 0b1000;
         const VIDEO_FFPROBE = 0b10000;
         const VIDEO_FFMPEG = 0b100000;
+        const FONT = 0b1000000;
+        const MARKUP = 0b10000000;
     }
 }
 
@@ -113,6 +129,7 @@ pub struct BrokenFiles {
     files_to_check: BTreeMap<String, BrokenEntry>,
     broken_files: Vec<BrokenEntry>,
     params: BrokenFilesParameters,
+    ffprobe_cache: std::sync::Mutex<std::collections::HashMap<std::path::PathBuf, String>>,
 }
 
 impl BrokenFiles {

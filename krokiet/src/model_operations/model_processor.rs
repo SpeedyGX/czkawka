@@ -14,12 +14,14 @@ use crate::connect_row_selection::checker::set_number_of_enabled_items;
 use crate::connect_row_selection::reset_selection;
 use crate::model_operations::ProcessingResult;
 use crate::simpler_model::{SimplerSingleMainListModel, ToSlintModel};
-use crate::{ActiveTab, GuiState, MainWindow, SingleMainListModel, flk, model_operations};
-// This is quite ugly workaround for Slint strange limitation, where model cannot be passed to another thread
-// This was needed by me, because I wanted to process deletion without blocking main gui thread, with additional sending progress about entire operation.
-// After trying different solutions, looks that the simplest and quite not really efficient solution is to convert slint model, to simpler model, which can be passed to another thread.
-// Models are converted multiple times, so this have some big overhead
-// ModelRc<SingleMainListModel> --cloning when iterating + converting--> SimplerSingleMainListModel --conversion before setting to model--> ModelRc<SingleMainListModel> --cloning when iterating to remove useless items--> ModelRc<SingleMainListModel>
+use crate::{ActiveTab, GuiState, MainWindow, flk};
+// Slint models cannot be passed to another thread, so we convert to a simpler model
+// that can cross thread boundaries. The conversion path is:
+// ModelRc<SingleMainListModel> --to_simpler_enumerated_vec--> Vec<(usize, SimplerSingleMainListModel)>
+//   --process_items (parallel)--> ProcessingResult
+//   --remove_processed_items_from_model + remove_single_items_in_groups_simpler--> Vec<SimplerSingleMainListModel>
+//   --to_vec_model--> Vec<SingleMainListModel> --> ModelRc
+// Group cleanup is applied on the simpler model to avoid a second iteration over SingleMainListModel.
 
 pub struct ModelProcessor {
     pub active_tab: ActiveTab,
@@ -95,11 +97,6 @@ pub enum ProcessFunction {
 impl ModelProcessor {
     pub fn new(active_tab: ActiveTab) -> Self {
         Self { active_tab }
-    }
-
-    pub(crate) fn remove_single_items_in_groups(&self, items: Vec<SingleMainListModel>) -> Vec<SingleMainListModel> {
-        let have_header = self.active_tab.get_is_header_mode();
-        model_operations::remove_single_items_in_groups(items, have_header)
     }
 
     pub(crate) fn remove_processed_items_from_model(results: ProcessingResult) -> (Vec<SimplerSingleMainListModel>, Vec<String>, usize) {
@@ -334,6 +331,14 @@ impl ModelProcessor {
         let processing_time = start_time.elapsed();
         let removing_items_from_model = std::time::Instant::now();
         let (new_simple_model, errors, items_processed) = Self::remove_processed_items_from_model(results);
+
+        // Apply group cleanup on the simpler model before converting back,
+        // eliminating the separate iteration that previously happened after to_vec_model().
+        let new_simple_model = if self.active_tab.get_is_header_mode() {
+            crate::model_operations::remove_single_items_in_groups_simpler(new_simple_model, true)
+        } else {
+            new_simple_model
+        };
         debug!(
             "Items processed in {processing_time:?}, removing items from model took {:?}, from all {} items, removed from list {}, failed to process {}",
             removing_items_from_model.elapsed(),
@@ -350,7 +355,8 @@ impl ModelProcessor {
 
         weak_app
             .upgrade_in_event_loop(move |app| {
-                let mut new_model_after_removing_useless_items = self.remove_single_items_in_groups(new_simple_model.to_vec_model());
+                // Group cleanup was already applied on the simpler model before conversion.
+                let mut new_model_after_removing_useless_items = new_simple_model.to_vec_model();
                 // Selection cache was invalidated, so we need to reset it
                 for e in &mut new_model_after_removing_useless_items {
                     e.selected_row = false;

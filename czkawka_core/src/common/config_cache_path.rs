@@ -4,11 +4,11 @@ use std::{env, fs};
 
 use directories_next::ProjectDirs;
 use log::{info, warn};
-use once_cell::sync::OnceCell;
+use std::sync::OnceLock;
 
 use crate::flc;
 
-static CONFIG_CACHE_PATH: OnceCell<Option<ConfigCachePath>> = OnceCell::new();
+static CONFIG_CACHE_PATH: OnceLock<Option<ConfigCachePath>> = OnceLock::new();
 
 #[derive(Debug, Clone)]
 pub struct ConfigCachePath {

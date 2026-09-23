@@ -158,3 +158,9 @@ and stop gracefully when it is `true`.
 - `libraw` – RAW image support (requires libraw)
 - `libavif` – AVIF image support (requires libavif)
 - `xdg_portal_trash` – FlatPak-compatible trash (XDG portal)
+
+---
+
+## Child DOX Index
+
+None (leaf node — only 3 source files, no sub-directory boundaries).

@@ -4,6 +4,9 @@ use slint::{ComponentHandle, Model, ModelRc, VecModel};
 use crate::connect_rfd::{hide_file_dialog_overlay, show_file_dialog_overlay};
 use crate::{Callabler, ExcludedPathsModel, IncludedPathsModel, MainWindow, Settings};
 
+// TODO: Add drag-and-drop path inclusion from file managers once Slint supports
+// native drop events (drop_event callback). Currently users must use file dialogs
+// or manual text entry to add paths.
 pub(crate) fn connect_add_remove_directories(app: &MainWindow) {
     connect_add_directories(app);
     connect_add_files(app);

@@ -140,15 +140,15 @@ export component MainWindow inherits Window {
                         background: touch_split.pressed ? ColorPalette.tab_selected_color : ColorPalette.line_item_color;
                         touch_split := TouchArea {
                             mouse-cursor: ew-resize;
-                            property <length> cached_split;
+                            property <length> press_offset;
                             pointer-event(event) => {
                                 if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
-                                    self.cached_split = root.preview_split;
+                                    self.press_offset = self.pressed-x;
                                 }
                             }
                             moved => {
                                 if (self.pressed) {
-                                    root.preview_split = max(root.min_list_width, min(self.cached_split + (self.mouse-x - self.pressed-x), root.width - 200px));
+                                    root.preview_split = max(root.min_list_width, min(self.mouse-x + split_at - self.press_offset, root.width - 200px));
                                 }
                             }
                         }
@@ -259,9 +259,7 @@ export component MainWindow inherits Window {
     new_directory_popup_window := PopupNewDirectories {
         height: root.height;
         width: root.width;
-
-        x: parent.x + (root.width - self.popup_width) / 2.0;
-        y: parent.y + (parent.height - self.popup_height) / 2.0;
+        x: 0.0; y: 0.0;
     }
 
     select_popup_window := PopupSelectResults {
@@ -279,56 +277,43 @@ export component MainWindow inherits Window {
     custom_select_popup_window := PopupCustomSelect {
         height: root.height;
         width: root.width;
-        x: parent.x + (root.width - self.popup_width) / 2.0;
-        y: parent.y + (parent.height - self.popup_height) / 2.0;
+        x: 0.0; y: 0.0;
     }
 
     delete_popup_window := PopupDelete {
         height: root.height;
         width: root.width;
-
-        x: parent.x + (root.width - self.popup_width) / 2.0;
-        y: parent.y + (parent.height - self.popup_height) / 2.0;
+        x: 0.0; y: 0.0;
     }
 
     trash_popup_window := PopupTrash {
         height: root.height;
         width: root.width;
-
-        x: parent.x + (root.width - self.popup_width) / 2.0;
-        y: parent.y + (parent.height - self.popup_height) / 2.0;
+        x: 0.0; y: 0.0;
     }
 
     move_popup_window := PopupMoveFolders {
         height: root.height;
         width: root.width;
-
-        x: parent.x + (root.width - self.popup_width) / 2.0;
-        y: parent.y + (parent.height - self.popup_height) / 2.0;
+        x: 0.0; y: 0.0;
     }
 
     rename_extension_popup_window := PopupRenameBadExtensions {
         height: root.height;
         width: root.width;
-
-        x: parent.x + (root.width - self.popup_width) / 2.0;
-        y: parent.y + (parent.height - self.popup_height) / 2.0;
+        x: 0.0; y: 0.0;
     }
 
     rename_bad_file_name_popup_window := PopupRenameBadFileNames {
         height: root.height;
         width: root.width;
-
-        x: parent.x + (root.width - self.popup_width) / 2.0;
-        y: parent.y + (parent.height - self.popup_height) / 2.0;
+        x: 0.0; y: 0.0;
     }
 
     save_popup_window := PopupSave {
         height: root.height;
         width: root.width;
-
-        x: parent.x + (root.width - self.popup_width) / 2.0;
-        y: parent.y + (parent.height - self.popup_height) / 2.0;
+        x: 0.0; y: 0.0;
     }
 
     sort_popup_window := PopupSortResults {
@@ -344,9 +329,7 @@ export component MainWindow inherits Window {
         height: root.height;
         width: root.width;
         title_text: Translations.clean_text;
-
-        x: parent.x + (root.width - self.popup_width) / 2.0;
-        y: parent.y + (parent.height - self.popup_height) / 2.0;
+        x: 0.0; y: 0.0;
 
         action_confirmed() => {
             Callabler.clean_exif_items();
@@ -356,9 +339,7 @@ export component MainWindow inherits Window {
     clean_cache_popup_window := PopupCleanCache {
         height: root.height;
         width: root.width;
-
-        x: parent.x + (root.width - self.popup_width) / 2.0;
-        y: parent.y + (parent.height - self.popup_height) / 2.0;
+        x: 0.0; y: 0.0;
 
         start_cleaning() => {
             Callabler.start_cache_cleaning();
@@ -373,9 +354,7 @@ export component MainWindow inherits Window {
         height: root.height;
         width: root.width;
         title_text: Translations.crop_videos_text;
-
-        x: parent.x + (root.width - self.popup_width) / 2.0;
-        y: parent.y + (parent.height - self.popup_height) / 2.0;
+        x: 0.0; y: 0.0;
 
         action_confirmed() => {
             Callabler.crop_video_items();
@@ -386,9 +365,7 @@ export component MainWindow inherits Window {
         height: root.height;
         width: root.width;
         title_text: Translations.reencode_videos_text;
-
-        x: parent.x + (root.width - self.popup_width) / 2.0;
-        y: parent.y + (parent.height - self.popup_height) / 2.0;
+        x: 0.0; y: 0.0;
 
         action_confirmed() => {
             Callabler.reencode_video_items();
@@ -400,9 +377,7 @@ export component MainWindow inherits Window {
         width: root.width;
         title_text: Translations.hardlink_text;
         confirmation_text: Translations.hardlink_confirmation_text;
-
-        x: parent.x + (root.width - self.popup_width) / 2.0;
-        y: parent.y + (parent.height - self.popup_height) / 2.0;
+        x: 0.0; y: 0.0;
 
         action_confirmed => {
             Callabler.hardlink_items();
@@ -414,9 +389,7 @@ export component MainWindow inherits Window {
         width: root.width;
         title_text: Translations.softlink_text;
         confirmation_text: Translations.softlink_confirmation_text;
-
-        x: parent.x + (root.width - self.popup_width) / 2.0;
-        y: parent.y + (parent.height - self.popup_height) / 2.0;
+        x: 0.0; y: 0.0;
 
         action_confirmed => {
             Callabler.softlink_items();

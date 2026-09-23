@@ -13,6 +13,7 @@ pub(crate) fn connect_tab_changed(app: &MainWindow, cache_task_sender: mpsc::Sen
         crate::connect_sort::set_sort_buttons(&app);
 
         let active_tab = app.global::<GuiState>().get_active_tab();
+
         if active_tab != ActiveTab::Settings {
             return;
         }

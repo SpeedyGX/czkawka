@@ -6,7 +6,11 @@ use czkawka_core::common::items::{DEFAULT_EXCLUDED_DIRECTORIES, DEFAULT_EXCLUDED
 use czkawka_core::common::model::{CheckingMethod, HashType};
 use czkawka_core::re_exported::{Cropdetect, HashAlg};
 use czkawka_core::tools::big_file::SearchMode;
-use czkawka_core::tools::similar_videos::{DEFAULT_SKIP_FORWARD_AMOUNT, DEFAULT_VID_HASH_DURATION, DEFAULT_VIDEO_PERCENTAGE_FOR_THUMBNAIL};
+use czkawka_core::tools::similar_images::GeometricInvariance;
+use czkawka_core::tools::similar_videos::{
+    DEFAULT_AUDIO_LENGTH_RATIO, DEFAULT_AUDIO_MAXIMUM_DIFFERENCE, DEFAULT_AUDIO_MIN_DURATION_SECONDS, DEFAULT_AUDIO_SIMILARITY_PERCENT, DEFAULT_SKIP_FORWARD_AMOUNT,
+    DEFAULT_VID_HASH_DURATION, DEFAULT_VIDEO_PERCENTAGE_FOR_THUMBNAIL,
+};
 use czkawka_core::tools::temporary::DEFAULT_TEMP_EXTENSIONS_STR;
 use czkawka_core::tools::video_optimizer::{NoiseReductionMethod, VideoCodec, VideoCroppingMechanism, VideoOptimizerMode};
 use home::home_dir;
@@ -88,6 +92,8 @@ pub struct SettingsCustom {
     pub similar_images_sub_hash_alg: String,
     #[serde(default = "default_resize_algorithm")]
     pub similar_images_sub_resize_algorithm: String,
+    #[serde(default = "default_geometric_invariance")]
+    pub similar_images_sub_geometric_invariance: String,
     #[serde(default)]
     pub similar_images_sub_ignore_same_size: bool,
     #[serde(default)]
@@ -144,6 +150,10 @@ pub struct SettingsCustom {
     pub broken_files_sub_video_ffprobe: bool,
     #[serde(default)]
     pub broken_files_sub_video_ffmpeg: bool,
+    #[serde(default)]
+    pub broken_files_sub_font: bool,
+    #[serde(default)]
+    pub broken_files_sub_markup: bool,
     #[serde(default = "ttrue")]
     pub bad_names_sub_uppercase_extension: bool,
     #[serde(default = "ttrue")]
@@ -164,6 +174,18 @@ pub struct SettingsCustom {
     pub similar_videos_vid_hash_duration: u32,
     #[serde(default = "default_similar_videos_crop_detect")]
     pub similar_videos_crop_detect: String,
+    #[serde(default)]
+    pub similar_videos_audio_check_content: bool,
+    #[serde(default)]
+    pub similar_videos_audio_preset_index: i32,
+    #[serde(default = "default_similar_videos_audio_similarity_percent")]
+    pub similar_videos_audio_similarity_percent: f32,
+    #[serde(default = "default_similar_videos_audio_length_ratio")]
+    pub similar_videos_audio_length_ratio: f32,
+    #[serde(default = "default_similar_videos_audio_min_duration_seconds")]
+    pub similar_videos_audio_min_duration_seconds: u32,
+    #[serde(default = "default_similar_videos_audio_maximum_difference")]
+    pub similar_videos_audio_maximum_difference: f32,
     #[serde(default)]
     pub video_thumbnails_generate: bool,
     #[serde(default = "default_similar_videos_thumbnail_percentage")]
@@ -256,6 +278,7 @@ pub struct ComboBoxItems {
     pub hash_size: StringComboBoxItem<u8>,
     pub resize_algorithm: StringComboBoxItem<FilterType>,
     pub image_hash_alg: StringComboBoxItem<HashAlg>,
+    pub image_geometric_invariance: StringComboBoxItem<GeometricInvariance>,
     pub duplicates_hash_type: StringComboBoxItem<HashType>,
     pub biggest_files_method: StringComboBoxItem<SearchMode>,
     pub audio_check_type: StringComboBoxItem<CheckingMethod>,
@@ -374,6 +397,18 @@ fn default_similar_videos_vid_hash_duration() -> u32 {
 fn default_similar_videos_crop_detect() -> String {
     "letterbox".to_string()
 }
+fn default_similar_videos_audio_similarity_percent() -> f32 {
+    DEFAULT_AUDIO_SIMILARITY_PERCENT as f32
+}
+fn default_similar_videos_audio_length_ratio() -> f32 {
+    DEFAULT_AUDIO_LENGTH_RATIO as f32
+}
+fn default_similar_videos_audio_min_duration_seconds() -> u32 {
+    DEFAULT_AUDIO_MIN_DURATION_SECONDS
+}
+fn default_similar_videos_audio_maximum_difference() -> f32 {
+    DEFAULT_AUDIO_MAXIMUM_DIFFERENCE as f32
+}
 fn default_similar_videos_thumbnail_percentage() -> u8 {
     DEFAULT_VIDEO_PERCENTAGE_FOR_THUMBNAIL
 }
@@ -444,6 +479,9 @@ pub(crate) fn default_resize_algorithm() -> String {
 }
 pub(crate) fn default_hash_type() -> String {
     "mean".to_string()
+}
+pub(crate) fn default_geometric_invariance() -> String {
+    "off".to_string()
 }
 pub(crate) fn default_sub_hash_size() -> String {
     DEFAULT_HASH_SIZE.to_string()

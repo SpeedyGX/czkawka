@@ -5,12 +5,14 @@ use std::sync::atomic::AtomicBool;
 
 use crossbeam_channel::Sender;
 use fun_time::fun_time;
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use log::debug;
 use rayon::prelude::*;
+use rusty_chromaprint::{Configuration, match_fingerprints};
 use vid_dup_finder_lib::{CreationOptions, Cropdetect, VideoHash, VideoHashBuilder};
 
-use crate::common::cache::{CACHE_VIDEO_VERSION, load_and_split_cache_generalized_by_path, save_and_connect_cache_generalized_by_path};
+use crate::common::audio_fingerprint::calc_fingerprint_and_duration;
+use crate::common::cache::{CACHE_VERSION, CACHE_VIDEO_VERSION, load_and_split_cache_generalized_by_path, save_and_connect_cache_generalized_by_path};
 use crate::common::config_cache_path::get_config_cache_path;
 use crate::common::dir_traversal::{DirTraversalBuilder, DirTraversalResult};
 use crate::common::model::{ToolType, WorkContinueStatus};
@@ -19,7 +21,8 @@ use crate::common::progress_stop_handler::{check_if_stop_received, prepare_threa
 use crate::common::tool_data::{CommonData, CommonToolData};
 use crate::common::traits::ResultEntry;
 use crate::common::video_utils::{VIDEO_THUMBNAILS_SUBFOLDER, VideoMetadata, generate_thumbnail};
-use crate::tools::similar_videos::{SimilarVideos, SimilarVideosParameters, VideosEntry};
+use crate::flc;
+use crate::tools::similar_videos::{SimilarVideos, SimilarVideosParameters, VideoAudioEntry, VideosEntry};
 
 impl SimilarVideos {
     pub fn new(params: SimilarVideosParameters) -> Self {
@@ -29,7 +32,9 @@ impl SimilarVideos {
             similar_vectors: Vec::new(),
             videos_hashes: Default::default(),
             videos_to_check: Default::default(),
+            audio_to_check: Default::default(),
             similar_referenced_vectors: Vec::new(),
+            audio_config: Configuration::preset_test1(),
             params,
         }
     }
@@ -56,7 +61,8 @@ impl SimilarVideos {
                     0,
                 );
                 let hide_hard_links = self.get_hide_hard_links();
-                self.videos_to_check = grouped_file_entries
+                let check_audio_content = self.params.check_audio_content;
+                let file_entries: Vec<_> = grouped_file_entries
                     .into_par_iter()
                     .map(|(size_group, fes)| {
                         if check_if_stop_received(stop_flag) {
@@ -68,14 +74,21 @@ impl SimilarVideos {
                     .while_some()
                     .flat_map(|(_, fes)| {
                         if hide_hard_links {
-                            let mut seen = std::collections::HashSet::new();
-                            fes.into_iter().filter(|fe| seen.insert(fe.inode)).collect::<Vec<_>>()
+                            crate::common::hardlink::filter_hard_links_by_inode(fes)
                         } else {
                             fes
                         }
                     })
-                    .map(|fe| (fe.path.to_string_lossy().to_string(), fe.into_videos_entry()))
                     .collect();
+
+                if check_audio_content {
+                    self.audio_to_check = file_entries
+                        .into_iter()
+                        .map(|fe| (fe.path.to_string_lossy().to_string(), fe.into_video_audio_entry()))
+                        .collect();
+                } else {
+                    self.videos_to_check = file_entries.into_iter().map(|fe| (fe.path.to_string_lossy().to_string(), fe.into_videos_entry())).collect();
+                }
 
                 progress_handler.join_thread();
 
@@ -83,7 +96,7 @@ impl SimilarVideos {
                     return WorkContinueStatus::Stop;
                 }
 
-                debug!("check_files - Found {} video files.", self.videos_to_check.len());
+                debug!("check_files - Found {} video files.", self.videos_to_check.len() + self.audio_to_check.len());
                 WorkContinueStatus::Continue
             }
 
@@ -138,35 +151,22 @@ impl SimilarVideos {
 
         let (loaded_hash_map, mut records_already_cached, mut non_cached_files_to_check) = self.load_cache_at_start();
 
-        // Inode-based cache fallback: if a file is not in cache by path,
-        // check if another file with the same inode is cached (hardlinks).
-        // If so, reuse the cached hash and metadata instead of recomputing.
-        // VideoHash stores src_path internally, so we fix it via JSON serialization.
-        let mut remaining = BTreeMap::new();
-        for (name, file_entry) in non_cached_files_to_check {
-            if file_entry.inode != 0 {
-                if let Some(cached_entry) = loaded_hash_map
-                    .values()
-                    .find(|cached| cached.inode == file_entry.inode)
-                {
-                    let mut cached = cached_entry.clone();
-                    cached.path = file_entry.path.clone();
-                    // Fix VideoHash src_path to point to the new file path
-                    if let Ok(mut json_value) = serde_json::to_value(&cached.vhash) {
-                        if let Some(obj) = json_value.as_object_mut() {
-                            obj.insert("src_path".to_string(), serde_json::Value::String(file_entry.path.to_string_lossy().to_string()));
-                            if let Ok(fixed_vhash) = serde_json::from_value(json_value) {
-                                cached.vhash = fixed_vhash;
-                            }
+        non_cached_files_to_check = crate::common::cache::resolve_inode_cache_entries(
+            &loaded_hash_map,
+            non_cached_files_to_check,
+            &mut records_already_cached,
+            |cached, file_entry| {
+                cached.path = file_entry.path.clone();
+                if let Ok(mut json_value) = serde_json::to_value(&cached.vhash) {
+                    if let Some(obj) = json_value.as_object_mut() {
+                        obj.insert("src_path".to_string(), serde_json::Value::String(file_entry.path.to_string_lossy().to_string()));
+                        if let Ok(fixed_vhash) = serde_json::from_value(json_value) {
+                            cached.vhash = fixed_vhash;
                         }
                     }
-                    records_already_cached.insert(name, cached);
-                    continue;
                 }
-            }
-            remaining.insert(name, file_entry);
-        }
-        non_cached_files_to_check = remaining;
+            },
+        );
 
         let progress_handler = prepare_thread_handler_common(
             progress_sender,
@@ -249,14 +249,13 @@ impl SimilarVideos {
     }
 
     #[fun_time(message = "create_thumbnails", level = "debug")]
-    fn create_thumbnails(&mut self, progress_sender: Option<&Sender<ProgressData>>, stop_flag: &Arc<AtomicBool>) -> WorkContinueStatus {
-        let progress_handler = prepare_thread_handler_common(
-            progress_sender,
-            CurrentStage::SimilarVideosCreatingThumbnails,
-            self.similar_vectors.iter().map(|e| e.len()).sum::<usize>(),
-            self.get_test_type(),
-            0,
-        );
+    pub(crate) fn create_thumbnails(&mut self, progress_sender: Option<&Sender<ProgressData>>, stop_flag: &Arc<AtomicBool>) -> WorkContinueStatus {
+        let stage = if self.params.check_audio_content {
+            CurrentStage::SimilarVideosAudioCreatingThumbnails
+        } else {
+            CurrentStage::SimilarVideosCreatingThumbnails
+        };
+        let progress_handler = prepare_thread_handler_common(progress_sender, stage, self.similar_vectors.iter().map(|e| e.len()).sum::<usize>(), self.get_test_type(), 0);
 
         let Some(config_cache_path) = get_config_cache_path() else {
             return WorkContinueStatus::Continue;
@@ -397,6 +396,190 @@ impl SimilarVideos {
                 .collect::<Vec<(VideosEntry, Vec<VideosEntry>)>>();
         }
     }
+
+    #[fun_time(message = "calculate_audio_fingerprints", level = "debug")]
+    pub(crate) fn calculate_audio_fingerprints(&mut self, stop_flag: &Arc<AtomicBool>, progress_sender: Option<&Sender<ProgressData>>) -> WorkContinueStatus {
+        if self.audio_to_check.is_empty() {
+            return WorkContinueStatus::Continue;
+        }
+
+        let progress_handler = prepare_thread_handler_common(progress_sender, CurrentStage::SimilarVideosAudioCacheLoading, 0, self.get_test_type(), 0);
+
+        let (loaded_hash_map, records_already_cached, non_cached_files_to_check) =
+            load_and_split_cache_generalized_by_path(&get_similar_videos_audio_cache_file(), mem::take(&mut self.audio_to_check), self);
+
+        progress_handler.join_thread();
+        if check_if_stop_received(stop_flag) {
+            return WorkContinueStatus::Stop;
+        }
+
+        let progress_handler = prepare_thread_handler_common(
+            progress_sender,
+            CurrentStage::SimilarVideosAudioCalculatingFingerprints,
+            non_cached_files_to_check.len(),
+            self.get_test_type(),
+            non_cached_files_to_check.values().map(|e| e.size).sum::<u64>(),
+        );
+        let configuration = &self.audio_config;
+
+        let non_cached_vec: Vec<_> = non_cached_files_to_check.into_iter().collect();
+        let mut vec_audio_entries: Vec<VideoAudioEntry> = non_cached_vec
+            .into_par_iter()
+            .with_max_len(2)
+            .map(|(path, mut audio_entry)| {
+                if check_if_stop_received(stop_flag) {
+                    return None;
+                }
+
+                let size = audio_entry.size;
+                let res = calc_fingerprint_and_duration(&path, configuration, stop_flag);
+                progress_handler.increase_size(size);
+                progress_handler.increase_items(1);
+
+                match res {
+                    Err(_e) => {
+                        // error!("Can't calculate audio fingerprint: {}", e);
+                        Some(None)
+                    }
+                    Ok(None) => None,
+                    Ok(Some((fingerprint, duration_seconds))) => {
+                        audio_entry.fingerprint = fingerprint;
+                        audio_entry.audio_duration_seconds = duration_seconds;
+                        Some(Some(audio_entry))
+                    }
+                }
+            })
+            .while_some()
+            .flatten()
+            .collect();
+
+        progress_handler.join_thread();
+
+        let progress_handler = prepare_thread_handler_common(progress_sender, CurrentStage::SimilarVideosAudioCacheSaving, 0, self.get_test_type(), 0);
+
+        vec_audio_entries.extend(records_already_cached.into_values());
+
+        save_and_connect_cache_generalized_by_path(&get_similar_videos_audio_cache_file(), &vec_audio_entries, loaded_hash_map, self);
+
+        self.audio_to_check = vec_audio_entries.into_iter().map(|e| (e.path.to_string_lossy().to_string(), e)).collect();
+
+        progress_handler.join_thread();
+        if check_if_stop_received(stop_flag) {
+            return WorkContinueStatus::Stop;
+        }
+        WorkContinueStatus::Continue
+    }
+
+    #[fun_time(message = "compare_audio_fingerprints", level = "debug")]
+    pub(crate) fn compare_audio_fingerprints(&mut self, stop_flag: &Arc<AtomicBool>, progress_sender: Option<&Sender<ProgressData>>) -> WorkContinueStatus {
+        if self.audio_to_check.is_empty() {
+            return WorkContinueStatus::Continue;
+        }
+
+        let audio_min_duration_seconds = self.params.audio_min_duration_seconds;
+        let entries: Vec<VideoAudioEntry> = mem::take(&mut self.audio_to_check)
+            .into_values()
+            .filter(|e| e.audio_duration_seconds >= audio_min_duration_seconds)
+            .collect();
+
+        let progress_handler = prepare_thread_handler_common(
+            progress_sender,
+            CurrentStage::SimilarVideosAudioComparingFingerprints,
+            entries.len(),
+            self.get_test_type(),
+            0,
+        );
+
+        let audio_similarity_percent = self.params.audio_similarity_percent;
+        let audio_length_ratio = self.params.audio_length_ratio;
+        let maximum_difference = self.params.maximum_difference;
+        let configuration = &self.audio_config;
+
+        let mut similar_vectors: Vec<Vec<VideosEntry>> = Vec::new();
+        let mut used_paths: IndexSet<String> = Default::default();
+
+        for f_entry in &entries {
+            if check_if_stop_received(stop_flag) {
+                progress_handler.join_thread();
+                return WorkContinueStatus::Stop;
+            }
+
+            progress_handler.increase_items(1);
+            let f_string = f_entry.path.to_string_lossy().to_string();
+            if used_paths.contains(&f_string) {
+                continue;
+            }
+
+            let f_duration = f64::from(f_entry.audio_duration_seconds);
+
+            let (mut similar_entries, errors): (Vec<_>, Vec<_>) = entries
+                .par_iter()
+                .map(|e_entry| {
+                    let e_string = e_entry.path.to_string_lossy().to_string();
+                    if used_paths.contains(&e_string) || e_string == f_string {
+                        return None;
+                    }
+
+                    let e_duration = f64::from(e_entry.audio_duration_seconds);
+                    let shorter = f_duration.min(e_duration);
+                    let longer = f_duration.max(e_duration);
+                    if longer == 0.0 || shorter / longer < audio_length_ratio {
+                        return None;
+                    }
+
+                    let mut segments = match match_fingerprints(&f_entry.fingerprint, &e_entry.fingerprint, configuration) {
+                        Ok(s) => s,
+                        Err(e) => return Some(Err(flc!("core_error_comparing_fingerprints", reason = e.to_string()))),
+                    };
+                    segments.retain(|s| s.score < maximum_difference);
+                    let matched_duration: f32 = segments.iter().map(|s| s.duration(configuration)).sum();
+                    let threshold = shorter as f32 * (audio_similarity_percent / 100.0) as f32;
+                    if matched_duration >= threshold { Some(Ok(e_string)) } else { None }
+                })
+                .flatten()
+                .partition_map(|res| match res {
+                    Ok(path) => itertools::Either::Left(path),
+                    Err(err) => itertools::Either::Right(err),
+                });
+
+            self.common_data.text_messages.errors.extend(errors);
+
+            similar_entries.retain(|path| !used_paths.contains(path));
+            if !similar_entries.is_empty() {
+                let lookup: BTreeMap<String, &VideoAudioEntry> = entries.iter().map(|e| (e.path.to_string_lossy().to_string(), e)).collect();
+                let mut result_group: Vec<VideosEntry> = similar_entries
+                    .iter()
+                    .filter_map(|path| {
+                        used_paths.insert(path.clone());
+                        lookup.get(path).map(|ae| audio_entry_to_videos_entry(ae))
+                    })
+                    .collect();
+                used_paths.insert(f_string);
+                result_group.push(audio_entry_to_videos_entry(f_entry));
+                similar_vectors.push(result_group);
+            }
+        }
+
+        progress_handler.join_thread();
+
+        self.similar_vectors = similar_vectors;
+
+        self.remove_from_reference_folders();
+
+        if self.common_data.use_reference_folders {
+            for (_fe, vector) in &self.similar_referenced_vectors {
+                self.information.number_of_duplicates += vector.len();
+                self.information.number_of_groups += 1;
+            }
+        } else {
+            for vector in &self.similar_vectors {
+                self.information.number_of_duplicates += vector.len() - 1;
+                self.information.number_of_groups += 1;
+            }
+        }
+
+        WorkContinueStatus::Continue
+    }
 }
 
 // Helper function to calculate video quality score based on bitrate, resolution, fps, and file size
@@ -435,6 +618,29 @@ fn select_best_quality_video(mut files: Vec<VideosEntry>) -> Option<VideosEntry>
     }
     files.sort_by_key(|entry| std::cmp::Reverse(calculate_video_quality_score(entry)));
     files.into_iter().next()
+}
+
+fn audio_entry_to_videos_entry(ae: &VideoAudioEntry) -> VideosEntry {
+    VideosEntry {
+        path: ae.path.clone(),
+        size: ae.size,
+        modified_date: ae.modified_date,
+        vhash: Default::default(),
+        difference: 0,
+        error: String::new(),
+        inode: 0,
+        fps: None,
+        codec: None,
+        bitrate: None,
+        width: None,
+        height: None,
+        duration: Some(f64::from(ae.audio_duration_seconds)),
+        thumbnail_path: None,
+    }
+}
+
+pub fn get_similar_videos_audio_cache_file() -> String {
+    format!("cache_similar_videos_audio_{CACHE_VERSION}.bin")
 }
 
 pub fn get_similar_videos_cache_file(skip_forward_amount: u32, duration: u32, crop_detect: Cropdetect) -> String {

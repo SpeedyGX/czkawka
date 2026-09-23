@@ -1,14 +1,16 @@
 # czkawka_web — Web GUI for Czkawka
 
-A lightweight web-based interface for the Czkawka file cleaning tools. Runs as a
-standalone HTTP server with an embedded frontend — no external files needed at runtime.
+A lightweight web interface for the Czkawka file-cleaning tools. It runs as a standalone HTTP
+server with the frontend embedded in the binary via `rust-embed` — no external files are needed at
+runtime. It ships a modern UI (ES modules, design tokens, light/dark theme, responsive layout) at
+`/` — the default entry point — and the classic UI at `/classic/`.
 
 ## Quick Start
 
 ### From source
 
 ```bash
-# Build (from workspace root)
+# Build (from the workspace root)
 cargo build --release --bin czkawka_web
 
 # Run
@@ -23,7 +25,8 @@ just run-web       # debug profile
 just runr-web      # fast_release profile
 ```
 
-Open [http://127.0.0.1:8095](http://127.0.0.1:8095) in your browser.
+Open [http://127.0.0.1:8095](http://127.0.0.1:8095) (modern UI, the default) or
+[http://127.0.0.1:8095/classic/](http://127.0.0.1:8095/classic/) (classic UI) in your browser.
 
 ### Using Docker
 
@@ -33,114 +36,44 @@ just docker-web
 
 # Or manually:
 docker build -t czkawka_web -f czkawka_web/Dockerfile .
-
-# Run
 docker run -p 8095:8095 --rm czkawka_web
 ```
 
+In Docker (and any remote/headless setup) scanning and previews work, but the **"Open"** /
+**"Show in folder"** actions cannot: they launch programs on the machine running the server, so they
+need a local desktop session. The server is **localhost-only and unauthenticated** — keep it on your
+own machine or behind a reverse proxy.
+
 ## Configuration
 
-| Environment variable | Default | Description                  |
-|----------------------|---------|------------------------------|
-| `CZKAWKA_PORT`       | `8095`  | TCP port for the HTTP server |
+| Environment variable | Default     | Description                  |
+|----------------------|-------------|------------------------------|
+| `CZKAWKA_ADDRESS`    | `127.0.0.1` | Bind address                 |
+| `CZKAWKA_PORT`       | `8095`      | TCP port for the HTTP server |
 
-The server binds to `127.0.0.1` by default. To change the address, modify the
-`SocketAddr` in [`src/main.rs`](src/main.rs) or set a reverse proxy (e.g. nginx,
-Caddy) in front of it.
+## API
 
-## API Endpoints
+The HTTP/WebSocket API is documented once, in the crate contract:
+[`AGENTS.md` → API Endpoints](AGENTS.md#api-endpoints).
 
-| Method | Path                           | Description               |
-|--------|--------------------------------|---------------------------|
-| POST   | `/api/scan/duplicates`         | Scan for duplicate files  |
-| POST   | `/api/scan/similar-images`     | Scan for similar images   |
-| POST   | `/api/scan/similar-videos`     | Scan for similar videos   |
-| GET    | `/api/preview/image?path=...`  | Image thumbnail preview   |
-| GET    | `/api/preview/video?path=...`  | Video thumbnail preview   |
-| GET    | `/api/results/{scan_id}`       | Get scan results          |
-| GET    | `/api/scan/progress/{scan_id}` | WebSocket progress stream |
-| POST   | `/api/files/delete`            | Delete selected files     |
-| POST   | `/api/files/hardlink`          | Hard-link selected files  |
-
-## Development
-
-### Frontend
-
-The frontend is a vanilla JS single-page application in [`web/`](web/):
-
-- [`web/index.html`](web/index.html) — main page structure
-- [`web/app.js`](web/app.js) — application logic
-- [`web/style.css`](web/style.css) — dark theme styles
-
-To rebuild the binary after frontend changes:
-
-```bash
-cargo build --release --bin czkawka_web
-```
-
-No bundler or build step is needed — the files are embedded at compile time via
-[`rust-embed`](https://crates.io/crates/rust-embed).
-
-### Adding new static files
-
-1. Place the file in [`czkawka_web/web/`](web/).
-2. Add a MIME type mapping in [`src/embedded.rs`](src/embedded.rs) if the extension is new.
-3. Rebuild the binary.
-
-## Project Structure
-
-```
-czkawka_web/
-├── Cargo.toml           # Crate manifest
-├── Dockerfile           # Multi-stage Docker build
-├── README.md            # This file
-├── src/
-│   ├── main.rs          # Server setup, routing
-│   ├── embedded.rs      # Static file embedding (rust-embed)
-│   ├── scan_manager.rs  # Scan lifecycle management
-│   ├── ws.rs            # WebSocket progress handler
-│   └── api/
-│       ├── mod.rs
-│       ├── actions.rs   # File delete/hardlink
-│       ├── preview.rs   # Image/video previews
-│       ├── results.rs   # Scan result retrieval
-│       └── scan.rs      # Scan initiation
-└── web/
-    ├── index.html       # Frontend HTML
-    ├── app.js           # Frontend JS
-    └── style.css        # Frontend CSS
-```
+Scan entry points are `POST /api/scan/duplicates`, `POST /api/scan/hardlink`, and the
+similar-images / similar-videos endpoints; progress streams over
+`GET /api/scan/progress/{scan_id}` (WebSocket).
 
 ## Docker Compose
 
-A [`docker-compose.yml`](docker-compose.yml) is provided for building and running the web service with a single command.
-
-### Build
+A [`docker-compose.yml`](docker-compose.yml) is provided for building and running the service:
 
 ```bash
 docker compose -f czkawka_web/docker-compose.yml build
-```
-
-### Run
-
-```bash
-docker compose -f czkawka_web/docker-compose.yml up
-```
-
-### Rebuild after changes
-
-```bash
-docker compose -f czkawka_web/docker-compose.yml build --no-cache
-```
-
-### Run in detached mode
-
-```bash
-docker compose -f czkawka_web/docker-compose.yml up -d
-```
-
-### Stop
-
-```bash
+docker compose -f czkawka_web/docker-compose.yml up       # add -d for detached mode
 docker compose -f czkawka_web/docker-compose.yml down
 ```
+
+## Development
+
+Both frontends live in [`web/`](web/) and are embedded at compile time — no bundler or build step.
+Frontend work targets the modern UI ([`web/v2/`](web/v2/)) by default; the classic UI is
+maintenance-only. See the crate contract ([`AGENTS.md`](AGENTS.md)) for source layout, adding new
+static files, and the full API reference, and [`docs/07-czkawka-web.md`](../docs/07-czkawka-web.md)
+for the architecture narrative.

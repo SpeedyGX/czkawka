@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use czkawka_core::common::progress_data::ProgressData;
 use serde_json::Value;
-use tokio::sync::{Mutex, broadcast};
+use tokio::sync::{Mutex, Semaphore, broadcast};
 
 /// Status of a single scan session.
 #[derive(Clone, Debug)]
@@ -38,12 +38,14 @@ impl ScanState {
 /// Central manager for all scan sessions.
 pub(crate) struct ScanManager {
     pub(crate) scans: Mutex<HashMap<String, ScanState>>,
+    pub(crate) concurrent_scan_semaphore: Arc<Semaphore>,
 }
 
 impl ScanManager {
     pub(crate) fn new() -> Self {
         Self {
             scans: Mutex::new(HashMap::new()),
+            concurrent_scan_semaphore: Arc::new(Semaphore::new(2)),
         }
     }
 

@@ -13,19 +13,36 @@ struct Assets;
 /// Serve a static file from the embedded archive.
 ///
 /// Routing:
-/// - `/` or empty path → `index.html`
-/// - `/style.css`     → `style.css`
-/// - `/app.js`        → `app.js`
-/// - anything else    → 404
+/// - `/` or empty path         → `v2/index.html` (modern UI, the default entry point)
+/// - `/classic` or `/classic/` → `index.html` (classic UI)
+/// - `/classic/<file>`         → `<file>` (classic assets)
+/// - `/v2/`                    → `v2/index.html` (modern UI alias)
+/// - `/style.css`, `/app.js`, `/index.html` → the same files at the `web/` root
+/// - anything else             → 404
 pub(crate) async fn serve_static(uri: Uri) -> Response {
-    let path = uri.path().trim_start_matches('/');
+    let raw_path = uri.path().trim_start_matches('/');
 
-    // Normalise: empty path or bare "/" maps to index.html.
-    let path = if path.is_empty() || path == "/" { "index.html" } else { path };
+    // The classic files stay at the `web/` root on purpose; only their URLs gain the `classic/`
+    // prefix. A directory-like path still resolves to its index.html.
+    let path = if raw_path.is_empty() {
+        "v2/index.html".to_string()
+    } else if let Some(rest) = raw_path.strip_prefix("classic/") {
+        if rest.is_empty() {
+            "index.html".to_string()
+        } else {
+            rest.to_string()
+        }
+    } else if raw_path == "classic" {
+        "index.html".to_string()
+    } else if raw_path.ends_with('/') {
+        format!("{raw_path}index.html")
+    } else {
+        raw_path.to_string()
+    };
 
-    match Assets::get(path) {
+    match Assets::get(&path) {
         Some(content) => {
-            let mime = mime_type(path);
+            let mime = mime_type(&path);
             (
                 StatusCode::OK,
                 [(header::CONTENT_TYPE, mime)],

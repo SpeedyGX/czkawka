@@ -1,7 +1,8 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::mem;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{LazyLock, Mutex};
 
 use crossbeam_channel::Sender;
 use fun_time::fun_time;
@@ -20,6 +21,10 @@ use crate::tools::bad_extensions::{BadExtensions, BadExtensionsParameters, BadFi
 
 // Text longer than 10 characters is not considered as extension
 const MAX_EXTENSION_LENGTH: usize = 10;
+
+// Cache of extension -> set of valid extensions for the same MIME type.
+// Lazily populated to avoid the mime_guess::from_ext → get_mime_extensions round-trip per file.
+static EXTENSION_VALID_SET_CACHE: LazyLock<Mutex<HashMap<String, BTreeSet<String>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
 impl BadExtensions {
     pub fn new(params: BadExtensionsParameters) -> Self {
@@ -168,14 +173,23 @@ impl BadExtensions {
     }
 
     fn check_for_all_extensions_that_file_can_use(workarounds: &IndexMap<&str, Vec<&str>>, current_extension: &str, proper_extension: &str) -> (BTreeSet<String>, String) {
-        let mut all_available_extensions: BTreeSet<String> = Default::default();
-        for mim in mime_guess::from_ext(proper_extension) {
-            if let Some(all_ext) = get_mime_extensions(&mim) {
-                for ext in all_ext {
-                    all_available_extensions.insert((*ext).to_string());
+        let mut all_available_extensions: BTreeSet<String> = {
+            let mut cache = EXTENSION_VALID_SET_CACHE.lock().expect("extension cache lock poisoned");
+            if let Some(cached) = cache.get(proper_extension) {
+                cached.clone()
+            } else {
+                let mut exts: BTreeSet<String> = Default::default();
+                for mim in mime_guess::from_ext(proper_extension) {
+                    if let Some(all_ext) = get_mime_extensions(&mim) {
+                        for ext in all_ext {
+                            exts.insert((*ext).to_string());
+                        }
+                    }
                 }
+                cache.insert(proper_extension.to_string(), exts.clone());
+                exts
             }
-        }
+        };
 
         // Workarounds:
         if !current_extension.is_empty()

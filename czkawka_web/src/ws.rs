@@ -19,13 +19,10 @@ pub(crate) async fn ws_handler(
 
 async fn handle_socket(mut socket: WebSocket, state: AppState, scan_id: String) {
     // Subscribe to progress broadcast for this scan
-    let mut rx = match state.scan_manager.subscribe_progress(&scan_id).await {
-        Some(rx) => rx,
-        None => {
-            let msg = json!({"error": "scan_id not found"}).to_string();
-            let _ = socket.send(Message::Text(msg.into())).await;
-            return;
-        }
+    let Some(mut rx) = state.scan_manager.subscribe_progress(&scan_id).await else {
+        let msg = json!({"error": "scan_id not found"}).to_string();
+        let _ = socket.send(Message::Text(msg.into())).await;
+        return;
     };
 
     let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(200));
@@ -49,7 +46,6 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, scan_id: String) 
                     }
                     Err(broadcast::error::RecvError::Lagged(n)) => {
                         tracing::warn!("WebSocket lagged by {n} messages for scan {scan_id}");
-                        continue;
                     }
                     Err(broadcast::error::RecvError::Closed) => {
                         let status = state.scan_manager.get_status(&scan_id).await;

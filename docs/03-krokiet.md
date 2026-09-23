@@ -3,7 +3,7 @@
 **Version:** 11.0.1  
 **License:** GPL-3.0-only  
 **Min Rust:** 1.92.0, edition 2024  
-**Framework:** [Slint](https://slint.dev/) 1.15.0  
+**Framework:** [Slint](https://slint.dev/) 1.17.0
 **Source:** [`krokiet/`](../krokiet)
 
 ---
@@ -21,7 +21,7 @@ The architecture follows a **callback-driven** pattern: the Slint UI (`.slint` f
 | Dependency | Version | Purpose |
 |---|---|---|
 | `czkawka_core` | 11.0.1 | Scanning engine (path = `../czkawka_core`) |
-| `slint` | 1.15.0 | Declarative UI framework (winit backend, no default features) |
+| `slint` | 1.17.0 | Declarative UI framework (winit backend, no default features) |
 | `chrono` | 0.4.38 | Date/time formatting |
 | `open` | 5.3 | Opening files/folders in OS file manager |
 | `crossbeam-channel` | 0.5 | Inter-thread progress communication |
@@ -733,7 +733,7 @@ MainWindow (main_window.slint)
 *Verified against source code on 2026-06-29.*
 
 **Checked and confirmed accurate:**
-- Cargo.toml: version 11.0.1, slint 1.15.0, all dependency versions, feature flags (audio, 9 renderers, 3 image formats, xdg_portal_trash), default features (winit_femtovg, winit_software)
+- Cargo.toml: version 11.0.1, slint 1.17.0, all dependency versions, feature flags (audio, 9 renderers, 3 image formats, xdg_portal_trash), default features (winit_femtovg, winit_software)
 - build.rs: SLINT_STYLE default "fluent-dark" logic correctly described
 - main.rs 22-step initialization flow: all steps verified, line order matches source
 - shared_models.rs: `SharedModels` struct with 14 tool `Option<>` fields, `new_shared()` returning `Arc<RwLock<Self>>`, `save_results()` and `get_use_reference_folders()` methods

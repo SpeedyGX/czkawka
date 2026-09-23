@@ -9,7 +9,7 @@ use czkawka_core::TOOLS_NUMBER;
 use czkawka_core::common::basic_gui_cli::CliResult;
 use czkawka_core::common::config_cache_path::get_config_cache_path;
 use czkawka_core::common::{get_all_available_threads, set_number_of_threads};
-use czkawka_core::tools::similar_videos::{ALLOWED_SKIP_FORWARD_AMOUNT, ALLOWED_VID_HASH_DURATION};
+use czkawka_core::tools::similar_videos::{ALLOWED_AUDIO_LENGTH_RATIO, ALLOWED_AUDIO_SIMILARITY_PERCENT, ALLOWED_SKIP_FORWARD_AMOUNT, ALLOWED_VID_HASH_DURATION};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 use slint::{ComponentHandle, Model, ModelRc, PhysicalSize, VecModel, WindowSize};
@@ -108,6 +108,7 @@ pub(crate) fn create_default_settings_files() {
     }
 }
 
+#[expect(clippy::print_stderr)]
 pub(crate) fn load_initial_settings_from_file(cli_result: Option<&CliResult>) -> (BasicSettings, SettingsCustom, i32) {
     StringComboBoxItems::regenerate_and_set();
 
@@ -120,7 +121,15 @@ pub(crate) fn load_initial_settings_from_file(cli_result: Option<&CliResult>) ->
         BasicSettings::default()
     };
 
-    let preset_to_load = if cli_result.is_some() { RESERVER_PRESET_IDX } else { base_settings.default_preset };
+    let preset_to_load = match cli_result.and_then(|c| c.preset) {
+        Some(preset) if (1..=PRESET_NUMBER as i32).contains(&preset) => preset - 1,
+        Some(preset) => {
+            eprintln!("Invalid preset number: {preset}. Must be between 1 and {PRESET_NUMBER}.");
+            std::process::exit(1);
+        }
+        None if cli_result.is_some() => RESERVER_PRESET_IDX,
+        None => base_settings.default_preset,
+    };
 
     let mut custom_settings = load_data_from_file::<SettingsCustom>(get_config_file(preset_to_load)).unwrap_or_else(|e| {
         error!("Cannot load custom settings for preset {preset_to_load} - {e}, using default instead");
@@ -147,18 +156,18 @@ pub(crate) fn set_initial_settings_to_gui(app: &MainWindow, base_settings: &Basi
     set_number_of_threads(custom_settings.thread_number as usize);
 }
 
-pub(crate) fn save_all_settings_to_file(app: &MainWindow, original_preset_idx: i32) {
-    save_base_settings_to_file(app, original_preset_idx);
+pub(crate) fn save_all_settings_to_file(app: &MainWindow, original_preset_idx: i32, explicit_cli_preset_used: bool) {
+    save_base_settings_to_file(app, original_preset_idx, explicit_cli_preset_used);
     save_custom_settings_to_file(app);
 
     info!("Saved settings to file");
 }
 
-pub(crate) fn save_base_settings_to_file(app: &MainWindow, original_preset_idx: i32) {
+pub(crate) fn save_base_settings_to_file(app: &MainWindow, original_preset_idx: i32, explicit_cli_preset_used: bool) {
     let mut collected_config_from_file = collect_base_settings(app);
 
     // We cannot normally start app with disallowed preset, so we restore it to original value
-    if collected_config_from_file.default_preset == PRESET_NUMBER as i32 - 1 {
+    if collected_config_from_file.default_preset == PRESET_NUMBER as i32 - 1 || explicit_cli_preset_used {
         collected_config_from_file.default_preset = original_preset_idx;
     }
 
@@ -327,6 +336,12 @@ pub(crate) fn set_combobox_custom_settings_items(settings: &Settings, custom_set
     settings.set_similar_images_sub_resize_algorithm_index(idx as i32);
     settings.set_similar_images_sub_resize_algorithm_value(display_names[idx].clone());
 
+    // Geometric invariance
+    let (idx, display_names) =
+        StringComboBoxItems::get_item_and_idx_from_config_name(&custom_settings.similar_images_sub_geometric_invariance, &collected_items.image_geometric_invariance);
+    settings.set_similar_images_sub_geometric_invariance_index(idx as i32);
+    settings.set_similar_images_sub_geometric_invariance_value(display_names[idx].clone());
+
     // Duplicates check method
     let (idx, display_names) = StringComboBoxItems::get_item_and_idx_from_config_name(&custom_settings.duplicates_sub_check_method, &collected_items.duplicates_check_method);
     // settings.set_duplicates_sub_check_method_model(display_names);
@@ -392,7 +407,11 @@ pub(crate) fn set_combobox_custom_settings_items(settings: &Settings, custom_set
 pub(crate) fn set_settings_to_gui(app: &MainWindow, custom_settings: &SettingsCustom, base_settings: &BasicSettings, cli_args: Option<CliResult>) {
     let settings = app.global::<Settings>();
 
-    let (included, referenced, excluded) = if let Some(cli_args) = cli_args {
+    let cli_args_has_paths = cli_args
+        .as_ref()
+        .is_some_and(|c| !c.included_items.is_empty() || !c.excluded_items.is_empty() || !c.referenced_items.is_empty());
+    let (included, referenced, excluded) = if cli_args_has_paths {
+        let cli_args = cli_args.expect("checked above via cli_args_has_paths");
         let vs_to_vp = |vec: Vec<String>| vec.into_iter().map(PathBuf::from).collect::<Vec<_>>();
         (vs_to_vp(cli_args.included_items), vs_to_vp(cli_args.referenced_items), vs_to_vp(cli_args.excluded_items))
     } else {
@@ -461,6 +480,27 @@ pub(crate) fn set_settings_to_gui(app: &MainWindow, custom_settings: &SettingsCu
     settings.set_similar_videos_vid_hash_duration_min(*ALLOWED_VID_HASH_DURATION.start() as f32);
     settings.set_similar_videos_vid_hash_duration_max(*ALLOWED_VID_HASH_DURATION.end() as f32);
 
+    settings.set_similar_videos_audio_check_content(custom_settings.similar_videos_audio_check_content);
+    settings.set_similar_videos_audio_preset_index(custom_settings.similar_videos_audio_preset_index);
+    settings.set_similar_videos_audio_similarity_percent(
+        custom_settings
+            .similar_videos_audio_similarity_percent
+            .clamp(*ALLOWED_AUDIO_SIMILARITY_PERCENT.start() as f32, *ALLOWED_AUDIO_SIMILARITY_PERCENT.end() as f32),
+    );
+    settings.set_similar_videos_audio_similarity_percent_min(*ALLOWED_AUDIO_SIMILARITY_PERCENT.start() as f32);
+    settings.set_similar_videos_audio_similarity_percent_max(*ALLOWED_AUDIO_SIMILARITY_PERCENT.end() as f32);
+    settings.set_similar_videos_audio_length_ratio(
+        custom_settings
+            .similar_videos_audio_length_ratio
+            .clamp(*ALLOWED_AUDIO_LENGTH_RATIO.start() as f32, *ALLOWED_AUDIO_LENGTH_RATIO.end() as f32),
+    );
+    settings.set_similar_videos_audio_length_ratio_min(*ALLOWED_AUDIO_LENGTH_RATIO.start() as f32);
+    settings.set_similar_videos_audio_length_ratio_max(*ALLOWED_AUDIO_LENGTH_RATIO.end() as f32);
+    settings.set_similar_videos_audio_min_duration_seconds(custom_settings.similar_videos_audio_min_duration_seconds as f32);
+    settings.set_similar_videos_audio_min_duration_seconds_max(600.0);
+    settings.set_similar_videos_audio_maximum_difference(custom_settings.similar_videos_audio_maximum_difference.max(0.0));
+    settings.set_similar_videos_audio_maximum_difference_max(10.0);
+
     settings.set_video_thumbnails_generate(custom_settings.video_thumbnails_generate);
     settings.set_video_thumbnails_percentage(
         custom_settings
@@ -490,6 +530,8 @@ pub(crate) fn set_settings_to_gui(app: &MainWindow, custom_settings: &SettingsCu
     settings.set_broken_files_sub_image(custom_settings.broken_files_sub_image);
     settings.set_broken_files_sub_video_ffprobe(custom_settings.broken_files_sub_video_ffprobe);
     settings.set_broken_files_sub_video_ffmpeg(custom_settings.broken_files_sub_video_ffmpeg);
+    settings.set_broken_files_sub_font(custom_settings.broken_files_sub_font);
+    settings.set_broken_files_sub_markup(custom_settings.broken_files_sub_markup);
 
     settings.set_bad_names_sub_uppercase_extension(custom_settings.bad_names_sub_uppercase_extension);
     settings.set_bad_names_sub_emoji_used(custom_settings.bad_names_sub_emoji_used);
@@ -534,6 +576,7 @@ pub(crate) fn set_settings_to_gui(app: &MainWindow, custom_settings: &SettingsCu
 
     let sel_px = 20.0;
     let source_px = 25.0;
+    let inode_px = 100.0;
     let path_px = 350.0;
     let name_px = 100.0;
     let mod_px = 125.0;
@@ -551,13 +594,13 @@ pub(crate) fn set_settings_to_gui(app: &MainWindow, custom_settings: &SettingsCu
     };
 
     if base_settings.settings_load_tabs_sizes_at_startup {
-        settings.set_duplicates_column_size(fnm(&[sel_px, source_px, size_px, name_px, path_px, mod_px], "duplicates"));
+        settings.set_duplicates_column_size(fnm(&[sel_px, source_px, inode_px, size_px, name_px, path_px, mod_px], "duplicates"));
         settings.set_empty_folders_column_size(fnm(&[sel_px, name_px, path_px, mod_px], "empty_folders"));
         settings.set_empty_files_column_size(fnm(&[sel_px, name_px, path_px, mod_px], "empty_files"));
         settings.set_temporary_files_column_size(fnm(&[sel_px, name_px, path_px, mod_px], "temporary_files"));
         settings.set_big_files_column_size(fnm(&[sel_px, size_px, name_px, path_px, mod_px], "big_files"));
-        settings.set_similar_images_column_size(fnm(&[sel_px, source_px, 80.0, 80.0, 80.0, name_px, path_px, mod_px], "similar_images"));
-        settings.set_similar_videos_column_size(fnm(&[sel_px, source_px, size_px, name_px, path_px, 80.0, 30.0, 30.0, 80.0, 80.0, mod_px], "similar_videos"));
+        settings.set_similar_images_column_size(fnm(&[sel_px, source_px, inode_px, 80.0, 80.0, 80.0, name_px, path_px, mod_px], "similar_images"));
+        settings.set_similar_videos_column_size(fnm(&[sel_px, source_px, inode_px, 80.0, size_px, name_px, path_px, 80.0, 30.0, 30.0, 80.0, 80.0, mod_px], "similar_videos"));
         settings.set_similar_music_column_size(fnm(&[sel_px, source_px, size_px, name_px, 80.0, 80.0, 80.0, 80.0, 80.0, 80.0, path_px, mod_px], "similar_music"));
         settings.set_invalid_symlink_column_size(fnm(&[sel_px, name_px, path_px, path_px, mod_px], "invalid_symlink"));
         settings.set_broken_files_column_size(fnm(&[sel_px, name_px, path_px, 200.0, size_px, mod_px], "broken_files"));
@@ -620,6 +663,7 @@ pub(crate) fn collect_settings(app: &MainWindow) -> SettingsCustom {
     let similar_images_sub_hash_size = combo_box_items.hash_size.config_name.clone();
     let similar_images_sub_hash_alg = combo_box_items.image_hash_alg.config_name.clone();
     let similar_images_sub_resize_algorithm = combo_box_items.resize_algorithm.config_name.clone();
+    let similar_images_sub_geometric_invariance = combo_box_items.image_geometric_invariance.config_name.clone();
     let similar_images_sub_ignore_same_size = settings.get_similar_images_sub_ignore_same_size();
     let similar_images_sub_ignore_same_resolution = settings.get_similar_images_sub_ignore_same_resolution();
     let similar_images_sub_similarity = settings.get_similar_images_sub_current_similarity().round() as i32;
@@ -635,6 +679,12 @@ pub(crate) fn collect_settings(app: &MainWindow) -> SettingsCustom {
     let similar_videos_crop_detect = combo_box_items.videos_crop_detect.config_name.clone();
     let similar_videos_skip_forward_amount = settings.get_similar_videos_skip_forward_amount() as u32;
     let similar_videos_vid_hash_duration = settings.get_similar_videos_vid_hash_duration() as u32;
+    let similar_videos_audio_check_content = settings.get_similar_videos_audio_check_content();
+    let similar_videos_audio_preset_index = settings.get_similar_videos_audio_preset_index();
+    let similar_videos_audio_similarity_percent = settings.get_similar_videos_audio_similarity_percent();
+    let similar_videos_audio_length_ratio = settings.get_similar_videos_audio_length_ratio();
+    let similar_videos_audio_min_duration_seconds = settings.get_similar_videos_audio_min_duration_seconds().round() as u32;
+    let similar_videos_audio_maximum_difference = settings.get_similar_videos_audio_maximum_difference();
 
     let video_thumbnails_generate = settings.get_video_thumbnails_generate();
     let video_thumbnails_percentage = settings.get_video_thumbnails_percentage().round() as u8;
@@ -658,6 +708,8 @@ pub(crate) fn collect_settings(app: &MainWindow) -> SettingsCustom {
     let broken_files_sub_image = settings.get_broken_files_sub_image();
     let broken_files_sub_video_ffprobe = settings.get_broken_files_sub_video_ffprobe();
     let broken_files_sub_video_ffmpeg = settings.get_broken_files_sub_video_ffmpeg();
+    let broken_files_sub_font = settings.get_broken_files_sub_font();
+    let broken_files_sub_markup = settings.get_broken_files_sub_markup();
 
     let bad_names_sub_uppercase_extension = settings.get_bad_names_sub_uppercase_extension();
     let bad_names_sub_emoji_used = settings.get_bad_names_sub_emoji_used();
@@ -755,6 +807,7 @@ pub(crate) fn collect_settings(app: &MainWindow) -> SettingsCustom {
         similar_images_sub_hash_size,
         similar_images_sub_hash_alg,
         similar_images_sub_resize_algorithm,
+        similar_images_sub_geometric_invariance,
         similar_images_sub_ignore_same_size,
         similar_images_sub_ignore_same_resolution,
         similar_images_sub_similarity,
@@ -766,6 +819,12 @@ pub(crate) fn collect_settings(app: &MainWindow) -> SettingsCustom {
         similar_videos_sub_ignore_same_size,
         similar_videos_sub_ignore_same_resolution,
         similar_videos_sub_similarity,
+        similar_videos_audio_check_content,
+        similar_videos_audio_preset_index,
+        similar_videos_audio_similarity_percent,
+        similar_videos_audio_length_ratio,
+        similar_videos_audio_min_duration_seconds,
+        similar_videos_audio_maximum_difference,
         similar_music_sub_audio_check_type,
         similar_music_sub_approximate_comparison,
         similar_music_compare_fingerprints_only_with_similar_titles,
@@ -783,6 +842,8 @@ pub(crate) fn collect_settings(app: &MainWindow) -> SettingsCustom {
         broken_files_sub_image,
         broken_files_sub_video_ffprobe,
         broken_files_sub_video_ffmpeg,
+        broken_files_sub_font,
+        broken_files_sub_markup,
         bad_names_sub_uppercase_extension,
         bad_names_sub_emoji_used,
         bad_names_sub_space_at_start_end,
@@ -843,6 +904,7 @@ pub(crate) fn collect_combo_box_settings(app: &MainWindow) -> ComboBoxItems {
     let hash_size_idx = settings.get_similar_images_sub_hash_size_index() as usize;
     let resize_algorithm_idx = settings.get_similar_images_sub_resize_algorithm_index() as usize;
     let image_hash_alg_idx = settings.get_similar_images_sub_hash_alg_index() as usize;
+    let image_geometric_invariance_idx = settings.get_similar_images_sub_geometric_invariance_index() as usize;
     let duplicates_hash_type_idx = settings.get_duplicates_sub_available_hash_type_index() as usize;
     let biggest_files_method_idx = settings.get_biggest_files_sub_method_index() as usize;
     let audio_check_type_idx = settings.get_similar_music_sub_audio_check_type_index() as usize;
@@ -858,6 +920,7 @@ pub(crate) fn collect_combo_box_settings(app: &MainWindow) -> ComboBoxItems {
         hash_size: collected_combo_boxes.hash_size[hash_size_idx].clone(),
         resize_algorithm: collected_combo_boxes.resize_algorithm[resize_algorithm_idx].clone(),
         image_hash_alg: collected_combo_boxes.image_hash_alg[image_hash_alg_idx].clone(),
+        image_geometric_invariance: collected_combo_boxes.image_geometric_invariance[image_geometric_invariance_idx].clone(),
         duplicates_hash_type: collected_combo_boxes.duplicates_hash_type[duplicates_hash_type_idx].clone(),
         biggest_files_method: collected_combo_boxes.biggest_files_method[biggest_files_method_idx].clone(),
         audio_check_type: collected_combo_boxes.audio_check_type[audio_check_type_idx].clone(),

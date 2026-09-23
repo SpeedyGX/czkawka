@@ -130,6 +130,12 @@ pub(crate) fn connect_translations(app: &MainWindow) {
         let app = a.upgrade().unwrap();
         change_language(&app);
     });
+
+    let a = app.as_weak();
+    app.global::<Callabler>().on_similar_videos_audio_preset_changed(move || {
+        let app = a.upgrade().expect("MainWindow dropped");
+        apply_similar_videos_audio_preset(&app);
+    });
 }
 
 pub fn find_the_closest_language_idx_to_system() -> usize {
@@ -230,6 +236,7 @@ fn translate_items(app: &MainWindow) {
     translation.set_subsettings_images_ignore_same_size_text(flk!("subsettings_images_ignore_same_size").into());
     translation.set_subsettings_images_ignore_same_resolution_text(flk!("subsettings_images_ignore_same_resolution").into());
     translation.set_subsettings_images_max_difference_text(flk!("subsettings_images_max_difference").into());
+    translation.set_subsettings_images_geometric_invariance_text(flk!("subsettings_images_geometric_invariance").into());
     translation.set_subsettings_images_duplicates_hash_type_text(flk!("subsettings_images_duplicates_hash_type").into());
     translation.set_subsettings_duplicates_check_method_text(flk!("subsettings_duplicates_check_method").into());
     translation.set_subsettings_duplicates_name_case_sensitive_text(flk!("subsettings_duplicates_name_case_sensitive").into());
@@ -238,6 +245,26 @@ fn translate_items(app: &MainWindow) {
     translation.set_subsettings_videos_max_difference_text(flk!("subsettings_videos_max_difference").into());
     translation.set_subsettings_videos_ignore_same_size_text(flk!("subsettings_videos_ignore_same_size").into());
     translation.set_subsettings_videos_ignore_same_resolution_text(flk!("subsettings_videos_ignore_same_resolution").into());
+    translation.set_subsettings_videos_audio_check_content_text(flk!("subsettings_videos_audio_check_content").into());
+    translation.set_subsettings_videos_audio_preset_text(flk!("subsettings_videos_audio_preset").into());
+    translation.set_subsettings_videos_audio_preset_custom(flk!("subsettings_videos_audio_preset_custom").into());
+    translation.set_subsettings_videos_audio_preset_identical(flk!("subsettings_videos_audio_preset_identical").into());
+    translation.set_subsettings_videos_audio_preset_clip(flk!("subsettings_videos_audio_preset_clip").into());
+    translation.set_subsettings_videos_audio_preset_similar(flk!("subsettings_videos_audio_preset_similar").into());
+
+    let preset_names: [SharedString; 4] = [
+        flk!("subsettings_videos_audio_preset_custom").into(),
+        flk!("subsettings_videos_audio_preset_identical").into(),
+        flk!("subsettings_videos_audio_preset_clip").into(),
+        flk!("subsettings_videos_audio_preset_similar").into(),
+    ];
+    let idx = settings.get_similar_videos_audio_preset_index().clamp(0, 3) as usize;
+    settings.set_similar_videos_audio_preset_value(preset_names[idx].clone());
+    settings.set_similar_videos_audio_preset_names(ModelRc::new(VecModel::from(preset_names.to_vec())));
+    translation.set_subsettings_videos_audio_similarity_percent_text(flk!("subsettings_videos_audio_similarity_percent").into());
+    translation.set_subsettings_videos_audio_length_ratio_text(flk!("subsettings_videos_audio_length_ratio").into());
+    translation.set_subsettings_videos_audio_min_duration_seconds_text(flk!("subsettings_videos_audio_min_duration_seconds").into());
+    translation.set_subsettings_videos_audio_maximum_difference_text(flk!("subsettings_videos_audio_maximum_difference").into());
     translation.set_subsettings_music_audio_check_type_text(flk!("subsettings_music_audio_check_type").into());
     translation.set_subsettings_music_approximate_comparison_text(flk!("subsettings_music_approximate_comparison").into());
     translation.set_subsettings_music_compared_tags_text(flk!("subsettings_music_compared_tags").into());
@@ -259,6 +286,8 @@ fn translate_items(app: &MainWindow) {
     translation.set_subsettings_broken_files_video_ffprobe_info_text(flk!("subsettings_broken_files_video_ffprobe_info").into());
     translation.set_subsettings_broken_files_video_ffmpeg_text(flk!("subsettings_broken_files_video_ffmpeg").into());
     translation.set_subsettings_broken_files_video_ffmpeg_info_text(flk!("subsettings_broken_files_video_ffmpeg_info").into());
+    translation.set_subsettings_broken_files_font_text(flk!("subsettings_broken_files_font").into());
+    translation.set_subsettings_broken_files_markup_text(flk!("subsettings_broken_files_markup").into());
     translation.set_subsettings_bad_names_issues_text(flk!("subsettings_bad_names_issues").into());
     translation.set_subsettings_bad_names_uppercase_extension_text(flk!("subsettings_bad_names_uppercase_extension").into());
     translation.set_subsettings_bad_names_uppercase_extension_hint_text(flk!("subsettings_bad_names_uppercase_extension_hint").into());
@@ -594,5 +623,30 @@ pub(crate) fn translate_sort_mode(sort_mode: SortMode) -> SharedString {
         SortMode::FullName => flk!("sort_by_full_name").into(),
         SortMode::Selection => flk!("sort_by_selection").into(),
         SortMode::Reverse => flk!("sort_reverse").into(),
+    }
+}
+
+fn apply_similar_videos_audio_preset(app: &MainWindow) {
+    let settings = app.global::<Settings>();
+    match settings.get_similar_videos_audio_preset_index() {
+        1 => {
+            settings.set_similar_videos_audio_similarity_percent(90.0);
+            settings.set_similar_videos_audio_length_ratio(0.85);
+            settings.set_similar_videos_audio_min_duration_seconds(5.0);
+            settings.set_similar_videos_audio_maximum_difference(2.0);
+        }
+        2 => {
+            settings.set_similar_videos_audio_similarity_percent(80.0);
+            settings.set_similar_videos_audio_length_ratio(0.05);
+            settings.set_similar_videos_audio_min_duration_seconds(10.0);
+            settings.set_similar_videos_audio_maximum_difference(3.0);
+        }
+        3 => {
+            settings.set_similar_videos_audio_similarity_percent(25.0);
+            settings.set_similar_videos_audio_length_ratio(0.4);
+            settings.set_similar_videos_audio_min_duration_seconds(10.0);
+            settings.set_similar_videos_audio_maximum_difference(6.0);
+        }
+        _ => {}
     }
 }

@@ -1,3 +1,4 @@
+pub mod audio_fingerprint;
 pub mod basic_gui_cli;
 pub mod cache;
 pub mod config_cache_path;
@@ -6,6 +7,7 @@ pub mod dir_traversal;
 pub mod directories;
 pub mod extensions;
 pub mod ffmpeg_utils;
+pub mod hardlink;
 pub mod image;
 pub mod items;
 pub mod logger;
@@ -35,35 +37,6 @@ static NUMBER_OF_THREADS: std::sync::LazyLock<Mutex<Option<usize>>> = std::sync:
 static ALL_AVAILABLE_THREADS: std::sync::LazyLock<Mutex<Option<usize>>> = std::sync::LazyLock::new(|| Mutex::new(None));
 
 const MAX_SYMLINK_HARDLINK_ATTEMPTS: u8 = 5;
-
-#[cfg(all(feature = "xdg_portal_trash", target_os = "linux"))]
-thread_local! {
-    static TOKIO_RT: std::cell::RefCell<Option<Result<tokio::runtime::Runtime, String>>> = const { std::cell::RefCell::new(None) };
-}
-
-#[cfg(all(feature = "xdg_portal_trash", target_os = "linux"))]
-fn with_runtime<F, R>(f: F) -> Result<R, String>
-where
-    F: FnOnce(&tokio::runtime::Runtime) -> Result<R, String>,
-{
-    TOKIO_RT.with(|cell| {
-        let mut opt = cell.borrow_mut();
-
-        if opt.is_none() {
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .map_err(|e| format!("Failed to build Tokio runtime: {e}"));
-
-            *opt = Some(rt);
-        }
-
-        match opt.as_ref().expect("Tokio runtime is initialized before") {
-            Ok(rt) => f(rt),
-            Err(e) => Err(e.clone()),
-        }
-    })
-}
 
 pub fn get_number_of_threads() -> usize {
     let data = NUMBER_OF_THREADS.lock().expect("Cannot fail").expect("Should be set before get");
@@ -170,7 +143,7 @@ fn trash_delete<P: AsRef<Path>>(path: P) -> Result<(), String> {
         use std::os::fd::AsFd;
         let file = std::fs::OpenOptions::new().write(true).read(true).open(path).map_err(|err| err.to_string())?;
 
-        with_runtime(|rt| rt.block_on(async move { ashpd::desktop::trash::trash_file(&file.as_fd()).await.map_err(|e| e.to_string()) }))?;
+        async_io::block_on(async move { ashpd::desktop::trash::trash_file(&file.as_fd()).await.map_err(|e| e.to_string()) })?;
 
         Ok(())
     }
@@ -278,6 +251,15 @@ pub(crate) fn create_crash_message(library_name: &str, file_path: &str, home_lib
     )
 }
 
+pub(crate) fn normalize_error_string(s: &str) -> String {
+    s.chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 #[expect(clippy::string_slice)]
 #[expect(clippy::indexing_slicing)]
 pub fn regex_check(expression_item: &SingleExcludedItem, directory_name: &str) -> bool {
@@ -372,11 +354,26 @@ pub fn make_hard_link<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> io::Res
             fs::remove_file(&temp)?;
             Ok(())
         }
-        Err(e) => {
-            let _ = fs::rename(&temp, dst);
-            Err(e)
-        }
+        Err(e) => Err(recover_from_failed_link(&temp, dst, e)),
     }
+}
+
+// After moving the original `dst` aside to `temp`, the hardlink/symlink creation failed. Move the
+// original back. If that rollback rename also fails, the original file is now orphaned at `temp`;
+// returning only the primary error would hide that, so fold the rollback failure and the temp
+// location into the returned error.
+fn recover_from_failed_link(temp: &Path, dst: &Path, primary_error: Error) -> Error {
+    let Err(rollback_error) = fs::rename(temp, dst) else {
+        return primary_error;
+    };
+    Error::new(
+        primary_error.kind(),
+        format!(
+            "{primary_error}; original file could not be restored and is now left at \"{}\" (rename back to \"{}\" failed: {rollback_error})",
+            temp.to_string_lossy(),
+            dst.to_string_lossy()
+        ),
+    )
 }
 
 #[cfg(any(target_family = "unix", target_family = "windows"))]
@@ -411,10 +408,7 @@ pub fn make_file_symlink<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> io::
             fs::remove_file(&temp)?;
             Ok(())
         }
-        Err(e) => {
-            let _ = fs::rename(&temp, dst);
-            Err(e)
-        }
+        Err(e) => Err(recover_from_failed_link(&temp, dst, e)),
     }
 }
 
@@ -717,6 +711,40 @@ mod test {
             }
         }
         Ok(())
+    }
+
+    #[test]
+    fn test_recover_from_failed_link_returns_primary_error_when_rollback_succeeds() {
+        let dir = tempdir().expect("Cannot create temporary directory");
+        let temp = dir.path().join("orig.czkawka_tmp");
+        let dst = dir.path().join("orig");
+        fs::write(&temp, b"original contents").expect("Cannot write temp file");
+
+        let returned = recover_from_failed_link(&temp, &dst, Error::new(io::ErrorKind::Unsupported, "hard_link failed"));
+
+        // Rollback succeeded: the original file is back at dst, temp is gone, and the caller sees
+        // the unchanged primary error.
+        assert_eq!(returned.kind(), io::ErrorKind::Unsupported);
+        assert_eq!(returned.to_string(), "hard_link failed");
+        assert_eq!(fs::read(&dst).expect("Cannot read restored file"), b"original contents");
+        assert!(!temp.exists(), "temp should have been renamed back to dst");
+    }
+
+    #[test]
+    fn test_recover_from_failed_link_reports_orphaned_file_when_rollback_fails() {
+        let dir = tempdir().expect("Cannot create temporary directory");
+        // temp does not exist, so the rollback rename fails deterministically on every platform.
+        let temp = dir.path().join("orig.czkawka_tmp");
+        let dst = dir.path().join("orig");
+
+        let returned = recover_from_failed_link(&temp, &dst, Error::new(io::ErrorKind::Unsupported, "hard_link failed"));
+
+        assert_eq!(returned.kind(), io::ErrorKind::Unsupported);
+        let message = returned.to_string();
+        assert!(message.contains("hard_link failed"), "missing primary error in: {message}");
+        assert!(message.contains("orig.czkawka_tmp"), "missing orphaned temp path in: {message}");
+        assert!(message.contains("could not be restored"), "missing recovery note in: {message}");
+        assert!(!dst.exists(), "dst must not be created when rollback fails");
     }
 
     #[test]

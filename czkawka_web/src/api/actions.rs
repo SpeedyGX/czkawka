@@ -6,7 +6,7 @@ use crate::api::scan::AppState;
 
 #[derive(Deserialize)]
 pub(crate) struct DeleteRequest {
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     pub(crate) scan_id: String,
     pub(crate) paths: Vec<String>,
 }
@@ -27,7 +27,7 @@ pub(crate) async fn delete_files(
 
     for path in &req.paths {
         match std::fs::remove_file(path) {
-            Ok(_) => deleted += 1,
+            Ok(()) => deleted += 1,
             Err(e) => {
                 tracing::warn!("Failed to delete {path}: {e}");
                 failed += 1;
@@ -69,12 +69,7 @@ pub(crate) async fn hardlink_files(
     let mut failed = 0;
     let mut errors = Vec::new();
 
-    let pairs = req.source_paths.len().min(req.target_paths.len());
-
-    for i in 0..pairs {
-        let source = &req.source_paths[i];
-        let target = &req.target_paths[i];
-
+    for (source, target) in req.source_paths.iter().zip(req.target_paths.iter()) {
         tracing::info!("Hardlink: {source} -> {target}");
 
         // If target already exists, remove it first so hard_link can succeed.
@@ -89,7 +84,7 @@ pub(crate) async fn hardlink_files(
         }
 
         match std::fs::hard_link(source, target) {
-            Ok(_) => {
+            Ok(()) => {
                 tracing::info!("Hardlink succeeded: {source} -> {target}");
                 hardlinked += 1;
             }

@@ -37,7 +37,13 @@ pub struct ImagesEntry {
     pub width: u32,
     pub height: u32,
     pub modified_date: u64,
+    /// Perceptual hash of the image as stored on disk (never transformed).
     pub hash: ImHash,
+    /// Hashes of the mirrored/rotated variants, filled only when geometric invariance
+    /// is enabled. Kept separate from `hash` so the inode-based cache fallback and
+    /// primary-hash handling stay untouched.
+    #[serde(default)]
+    pub extra_hashes: Vec<ImHash>,
     pub difference: u32,
     pub inode: u64,
 }
@@ -66,8 +72,28 @@ impl FileEntry {
             width: 0,
             height: 0,
             hash: Vec::new(),
+            extra_hashes: Vec::new(),
             difference: 0,
             inode: self.inode,
+        }
+    }
+}
+
+/// Controls which geometric transformations of an image are also hashed, so that
+/// mirrored/rotated copies are detected as similar.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GeometricInvariance {
+    Off,
+    MirrorFlip,
+    MirrorFlipRotate90,
+}
+
+impl GeometricInvariance {
+    pub const fn as_cache_tag(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::MirrorFlip => "mirror_flip",
+            Self::MirrorFlipRotate90 => "mirror_flip_rotate90",
         }
     }
 }
@@ -104,6 +130,7 @@ pub struct SimilarImagesParameters {
     pub image_filter: FilterType,
     pub exclude_images_with_same_size: bool,
     pub exclude_images_with_same_resolution: bool,
+    pub geometric_invariance: GeometricInvariance,
 }
 
 impl SimilarImagesParameters {
@@ -114,6 +141,7 @@ impl SimilarImagesParameters {
         image_filter: FilterType,
         exclude_images_with_same_size: bool,
         exclude_images_with_same_resolution: bool,
+        geometric_invariance: GeometricInvariance,
     ) -> Self {
         assert!([8, 16, 32, 64].contains(&hash_size));
         Self {
@@ -123,6 +151,7 @@ impl SimilarImagesParameters {
             image_filter,
             exclude_images_with_same_size,
             exclude_images_with_same_resolution,
+            geometric_invariance,
         }
     }
 }

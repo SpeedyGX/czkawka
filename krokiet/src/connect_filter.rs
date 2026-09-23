@@ -3,6 +3,7 @@ use std::sync::{LazyLock, Mutex};
 
 use slint::{ComponentHandle, ModelRc, VecModel};
 
+use crate::connect_row_selection::recalculate_small_selection_if_needed;
 use crate::simpler_model::{SimplerSingleMainListModel, ToSimplerVec, ToSlintModel};
 use crate::{ActiveTab, Callabler, GuiState, MainWindow, SingleMainListModel};
 
@@ -32,7 +33,10 @@ pub(crate) fn connect_filter(app: &MainWindow) {
             if let Ok(cache) = FILTER_CACHE.lock() {
                 if let Some(cached) = cache.get(&active_tab) {
                     let restored: Vec<SingleMainListModel> = cached.iter().map(|s| s.clone().into()).collect();
-                    active_tab.set_tool_model(&app, ModelRc::new(VecModel::from(restored)));
+                    let restored_model = ModelRc::new(VecModel::from(restored));
+                    active_tab.set_tool_model(&app, restored_model);
+                    let model = active_tab.get_tool_model(&app);
+                    recalculate_small_selection_if_needed(&model, active_tab);
                     return;
                 }
             }
@@ -77,27 +81,51 @@ pub(crate) fn connect_filter(app: &MainWindow) {
             }
         }
 
-        // Apply filter using cached data
+        // Apply group-aware filter using cached data
         let cache = FILTER_CACHE.lock().expect("FILTER_CACHE mutex poisoned");
         if let Some(all_items) = cache.get(&active_tab) {
-            let filtered: Vec<SimplerSingleMainListModel> = all_items
-                .iter()
-                .filter(|item| {
-                    // Always keep header rows
-                    if item.header_row {
-                        return true;
-                    }
-                    // Filter by the selected column
-                    item.val_str
+            // Pass 1: find which header indices have at least one matching data row
+            let mut matching_groups: Vec<usize> = Vec::new();
+            let mut current_header_idx: Option<usize> = None;
+
+            for (idx, item) in all_items.iter().enumerate() {
+                if item.header_row {
+                    current_header_idx = Some(idx);
+                } else if let Some(header_idx) = current_header_idx {
+                    let matches = item
+                        .val_str
                         .iter()
                         .nth(filter_idx)
-                        .is_some_and(|val| val.to_lowercase().contains(&filter_lower))
+                        .is_some_and(|val| val.to_lowercase().contains(&filter_lower));
+                    if matches {
+                        matching_groups.push(header_idx);
+                    }
+                }
+            }
+
+            matching_groups.sort_unstable();
+            matching_groups.dedup();
+
+            // Pass 2: include headers and all data rows from matching groups
+            let mut current_header_idx: Option<usize> = None;
+            let filtered: Vec<SimplerSingleMainListModel> = all_items
+                .iter()
+                .enumerate()
+                .filter(|(idx, item)| {
+                    if item.header_row {
+                        current_header_idx = Some(*idx);
+                        return true; // Always keep headers
+                    }
+                    // Keep data rows that belong to a matching group
+                    current_header_idx.is_some_and(|h| matching_groups.binary_search(&h).is_ok())
                 })
-                .cloned()
+                .map(|(_, item)| item.clone())
                 .collect();
 
             let filtered_model = ModelRc::new(VecModel::from(filtered.to_vec_model()));
             active_tab.set_tool_model(&app, filtered_model);
+            let model = active_tab.get_tool_model(&app);
+            recalculate_small_selection_if_needed(&model, active_tab);
         }
     });
 }

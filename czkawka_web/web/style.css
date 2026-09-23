@@ -185,3 +185,52 @@ tr.row-linked:hover { opacity: 0.75; }
     cursor: pointer;
     margin-left: 8px;
 }
+
+/* Sort indicators */
+.sort-indicator { font-size: 10px; margin-left: 2px; opacity: 0; }
+.sort-indicator.active { opacity: 1; color: #e94560; }
+th.sort-active { color: #e94560; }
+
+/* View toggle */
+.view-toggle { display: flex; gap: 0; margin-left: 12px; border-radius: 4px; overflow: hidden; border: 1px solid #1a3a6a; }
+.view-toggle-btn { background: #0f3460; color: #8892b0; border: none; padding: 6px 14px; cursor: pointer; font-size: 12px; }
+.view-toggle-btn.active { background: #e94560; color: #fff; }
+.view-toggle-btn:hover:not(.active) { background: #1a4a7a; }
+
+/* Gallery view */
+#gallery-view { max-height: 60vh; overflow-y: auto; border: 1px solid #16213e; border-radius: 4px; padding: 12px; }
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+.gallery-group-header { grid-column: 1 / -1; font-weight: bold; font-size: 13px; color: #a8b2d1; padding: 8px 4px 4px; border-top: 2px solid #1a3a6a; margin-top: 4px; }
+.gallery-group-header:first-child { border-top: none; margin-top: 0; }
+.gallery-card { background: #0f3460; border: 2px solid transparent; border-radius: 6px; overflow: hidden; cursor: pointer; position: relative; transition: border-color 0.15s; }
+.gallery-card:hover { border-color: #1a4a7a; }
+.gallery-card.selected { border-color: #e94560; }
+.gallery-thumb { width: 100%; height: 140px; object-fit: cover; display: block; }
+.gallery-filename { display: block; padding: 6px 8px 2px; font-size: 12px; color: #eee; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gallery-info { display: block; padding: 0 8px 6px; font-size: 11px; color: #8892b0; }
+.gallery-checkbox { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 3px; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; font-size: 12px; color: transparent; }
+.gallery-card.selected .gallery-checkbox { background: #e94560; color: #fff; }
+.gallery-card:focus-visible { outline: 2px solid #e94560; outline-offset: 2px; }
+
+/* Recent directories dropdown */
+.recent-dirs-toggle { background: #0f3460; color: #eee; border: 1px solid #1a3a6a; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; position: relative; }
+.recent-dirs-toggle:hover { background: #1a4a7a; }
+.recent-dirs-toggle.open { background: #1a4a7a; }
+.recent-dirs-dropdown { position: absolute; z-index: 100; background: #16213e; border: 1px solid #0f3460; border-radius: 4px; min-width: 280px; max-height: 240px; overflow-y: auto; box-shadow: 0 4px 16px rgba(0,0,0,0.4); margin-top: 4px; }
+.recent-dirs-dropdown.hidden { display: none; }
+.recent-dirs-list { padding: 4px; }
+.recent-dir-item { padding: 6px 8px; font-size: 12px; color: #ccc; cursor: pointer; border-radius: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recent-dir-item:hover { background: #0f3460; color: #eee; }
+.recent-dir-empty { padding: 8px; font-size: 12px; color: #8892b0; text-align: center; }
+.recent-dirs-clear { width: 100%; padding: 6px; background: none; border: none; border-top: 1px solid #0f3460; color: #e94560; font-size: 12px; cursor: pointer; }
+.recent-dirs-clear:hover { background: #0f3460; }
+
+/* Position context for dropdown */
+#included-dirs .dir-add, #excluded-dirs .dir-add { position: relative; }
+
+/* Reconnecting indicator in status bar */
+#status-bar.reconnecting { color: #f0a500; }
+
+/* Link to the modern (v2) interface */
+header .ui-switch { margin-left: auto; color: #e94560; font-size: 13px; text-decoration: none; border: 1px solid #1a3a6a; padding: 6px 12px; border-radius: 4px; white-space: nowrap; }
+header .ui-switch:hover { background: #0f3460; text-decoration: none; }
