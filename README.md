@@ -20,6 +20,11 @@ Below are the key differences and additions introduced in this fork.
 
 - **czkawka_web** — A lightweight web-based UI that runs as a standalone HTTP server (axum + Tokio). Features a REST API, WebSocket progress streaming, an embedded vanilla JS frontend, and Docker support. All static files are embedded at compile time via `rust-embed` — no external files needed at runtime. See [czkawka_web/README.md](czkawka_web/README.md).
 
+<img width="900" alt="czkawka_web_duplicates" src="https://github.com/user-attachments/assets/dd4b0b8d-1b23-4689-aee2-7fa6a1465b2b" />
+<img width="900" alt="czkawka_web_images" src="https://github.com/user-attachments/assets/fe22944f-928c-49a9-ba31-fa976595b20b" />
+<img width="900" alt="czkawka_web_videos" src="https://github.com/user-attachments/assets/d9c974c2-9dc6-4ed3-a821-45b40020e2a8" />
+
+
 ### Krokiet Enhancements
 
 These are improvements to the existing [Krokiet](https://github.com/qarmin/czkawka) Slint-based desktop GUI, contributed on top of the original project:
