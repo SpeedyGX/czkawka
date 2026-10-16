@@ -11,27 +11,18 @@ terminal.
 
 ## Source Layout
 
-```
-czkawka_cli/src/
-├── main.rs       # Entry point, thread spawning, tool dispatchers
-├── commands.rs   # All clap CLI argument definitions
-└── progress.rs   # indicatif progress bar rendering
-```
+- `src/main.rs:54` — entry point, thread spawning, tool dispatchers.
+- `src/commands.rs:39` (`Commands`) / `src/commands.rs:808` (`CommonCliItems`) — all clap argument definitions.
+- `src/progress.rs` — indicatif progress bar rendering.
 
 ---
 
 ## Execution Model
 
-```
-main()
- ├─ Parse args (clap)
- ├─ Create crossbeam channel  (Sender<ProgressData>, Receiver<ProgressData>)
- ├─ Create Arc<AtomicBool> stop_flag
- ├─ spawn calculation_thread → dispatches to one of 14 tool functions
- ├─ Register Ctrl+C handler → sets stop_flag = true
- ├─ connect_progress(&progress_receiver)   [blocks, renders progress bar]
- └─ join calculation_thread → print output → exit(11) if items found
-```
+`main()` (`src/main.rs:54`) parses the args (clap), creates the crossbeam channel and the `stop_flag`,
+spawns one calculation thread that dispatches to one of the 14 tool functions, registers the Ctrl+C
+handler, blocks in `connect_progress(&progress_receiver)` while the scan runs, then joins the calculation
+thread, prints the output and exits with 11 if items were found.
 
 The **main thread** renders progress. The **calculation thread** runs the scan.
 `progress_receiver.recv()` exits naturally when the sender drops (scan ends).
@@ -88,21 +79,11 @@ variants:
 
 Every one of the 14 dispatch functions follows the same structure:
 
-```rust
-fn tool_name(args: ToolArgs, stop_flag: &Arc<AtomicBool>, progress_sender: &Sender<ProgressData>) -> CliOutput {
-    // 1. Destructure args
-    // 2. Build tool-specific parameter struct
-    let mut tool = ToolType::new(params);
-    // 3. Apply common settings (paths, extensions, cache, threads)
-    set_common_settings(&mut tool, &common_cli_items, reference_directories);
-    // 4. Apply tool-specific settings (file sizes, delete method, etc.)
-    // 5. Run scan
-    tool.search(stop_flag, Some(progress_sender));
-    // 6. Optionally run fix (rename/delete/etc.)
-    // 7. Collect and return output
-    save_and_write_results_to_writer(&tool, &common_cli_items)
-}
-```
+Each dispatcher takes the tool args, the `stop_flag` and the progress sender, and returns a `CliOutput`.
+The steps are always the same: destructure the args → build the tool-specific parameter struct → apply the
+common settings → apply the tool-specific settings (file sizes, delete method, …) → run
+`tool.search(stop_flag, Some(progress_sender))` → optionally run the fix step (rename/delete/…) → return
+`save_and_write_results_to_writer(&tool, &common_cli_items)`.
 
 `set_common_settings` applies paths, recursion, extensions, cache flags, and
 thread count via the `AllTraits` bound.

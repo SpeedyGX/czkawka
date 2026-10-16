@@ -94,8 +94,9 @@ Cargo workspace resolver v3, minimum Rust 1.92.0, edition 2024 throughout.
 
 Root keeps only project-wide rules: language, comments, panic policy, project goals, the `just fix`
 quality gate, line endings, i18n, Slint UI conventions, build profiles and the justfile reference.
-Each crate's internals — architecture, source layout, local contracts, work guidance and
-verification — live in that crate's own AGENTS.md; see the Child DOX Index at the end of this file.
+Each crate's internals — local contracts, work guidance and verification — live in that crate's own AGENTS.md;
+architecture, source layout and call/data flows are answered by a graph query (see
+`## Structural navigation (graphify)`); see the Child DOX Index at the end of this file.
 
 ---
 
@@ -180,6 +181,7 @@ just docker-web           # Docker build web frontend
 5. If a parent AGENTS.md lists a child AGENTS.md whose scope contains the path, read that child and continue from there
 6. Use the nearest AGENTS.md as the local contract and parent docs for repo-wide rules
 7. If docs conflict, the closer doc controls local work details, but no child doc may weaken DOX
+8. This walk is mandatory for rules; start structure questions ("where is X", "what calls Y") from a graph query instead (see `## Structural navigation (graphify)` below) — neither substitutes for the other
 
 Do not rely on memory. Re-read the applicable DOX chain in the current session before editing.
 
@@ -264,3 +266,22 @@ Directories without child AGENTS.md (not durable boundaries):
 - [`ci_tester/`](ci_tester/) — Minimal CLI integration test runner
 - [`.cargo/`](.cargo/) — Cargo config (`config.toml`)
 - [`.github/`](.github/) — CI/CD workflows and issue templates
+
+---
+
+## Structural navigation (graphify)
+
+- **Division of labour** – graphify answers *structure* (where something lives, what calls what, how data flows, `file:line`);
+  `AGENTS.md` answers *rules and contracts*; asking the graph for policy returns nothing useful.
+- **Precedence** – `AGENTS.md` is binding: if graph output disagrees with a doc, the doc wins, and
+  graph output never justifies bypassing a documented rule.
+- **Coverage gap** – `.slint` and `.ftl` files are not in the graph: read them directly; Slint UI
+  conventions and i18n/Crowdin rules live only in the docs.
+- **Provenance** – the graph is regenerated from source, so curated rules cannot be recovered from
+  it; the docs are the only carrier of rules.
+- **Refresh** – refresh the graph after edits; syntax lives in `.roo/rules/.roorules`, not here.
+- **Anti-duplication** – do not write call-graph, flow, source-layout (file/directory trees) or struct/field-dump prose
+  into a child AGENTS.md to restate what a graph query answers; keep such sections pointer-style
+  (module + one line + where to look).
+- **Query first** – read raw files only for what the graph or an earlier read already located, then
+  re-read the applicable DOX chain before editing.

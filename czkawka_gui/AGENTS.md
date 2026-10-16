@@ -17,67 +17,23 @@ available in `czkawka_core` are exposed via a notebook (tab-based) interface.
 ## Source Layout
 
 ```
-czkawka_gui/src/
-├── main.rs                          # GTK Application setup, GuiData construction
-├── initialize_gui.rs                # Initial widget state
+czkawka_gui/src/                     # Rust side — entry point `fn main` (src/main.rs:75)
+├── gui_structs/gui_data.rs:50       # GuiData – central struct for all UI components
+├── connect_things/                  # Callback wiring (connect_button_search.rs:45 and friends)
 ├── compute_results.rs               # Converts scan results → GTK ListStore rows
+├── helpers/                         # Column enums, ListStore ops, image ops, TreeView iteration
+├── initialize_gui.rs                # Initial widget state
 ├── saving_loading.rs                # JSON settings load/save
 ├── language_functions.rs            # LANGUAGES_ALL constant (26 entries)
 ├── localizer_gui.rs                 # flg! macro, Fluent loader
-├── gui_structs/
-│   ├── gui_data.rs                  # GuiData – central struct for all UI components
-│   ├── gui_main_notebook.rs         # 11-tool tab notebook
-│   ├── gui_upper_notebook.rs        # Included/excluded directory tabs
-│   ├── gui_settings.rs              # Settings dialog
-│   ├── gui_header.rs                # Menu bar (About, Settings)
-│   ├── gui_bottom_buttons.rs        # Action buttons (Search, Delete, etc.)
-│   ├── gui_progress_dialog.rs       # Scan progress window
-│   ├── gui_about.rs                 # About dialog
-│   ├── gui_compare_images.rs        # Side-by-side image diff overlay
-│   ├── common_tree_view.rs          # TreeView/ListStore rendering + SharedModelEnum
-│   ├── common_upper_tree_view.rs    # Dir-list TreeViews
-│   ├── gui_popovers_select.rs       # Selection filter popovers
-│   └── gui_popovers_sort.rs         # Sort filter popovers
-├── connect_things/                  # Callback wiring files
-│   ├── connect_button_search.rs     # Scan thread spawn + progress forwarding
-│   ├── connect_button_delete.rs     # File deletion with confirmation
-│   ├── connect_button_save.rs       # Export results (CSV/JSON)
-│   ├── connect_button_select.rs     # Row selection helpers
-│   ├── connect_button_sort.rs       # Column-header sort
-│   ├── connect_button_stop.rs       # Cancel scan (stop flag)
-│   ├── connect_button_move.rs       # Move files to folder
-│   ├── connect_button_hardlink.rs   # Hard-link/symlink creation
-│   ├── connect_button_compare.rs    # Image comparison launcher
-│   ├── connect_duplicate_buttons.rs # Duplicate-specific UI
-│   ├── connect_notebook_tabs.rs     # Tab-switch handler
-│   ├── connect_selection_of_directories.rs  # Dir-picker dialogs
-│   ├── connect_change_language.rs   # Language switch + full UI relabel
-│   ├── connect_settings.rs          # Settings window callbacks
-│   ├── connect_progress_window.rs   # Progress bar updates from channel
-│   ├── connect_show_hide_ui.rs      # Error text visibility toggle
-│   ├── connect_similar_image_size_change.rs
-│   ├── connect_same_music_mode_changed.rs
-│   ├── connect_popovers_select.rs
-│   ├── connect_popovers_sort.rs
-│   ├── connect_header_buttons.rs
-│   ├── connect_about_buttons.rs
-│   ├── connect_krokiet_info_dialog.rs  # One-time Krokiet migration notice
-│   └── file_chooser_helpers.rs
-├── helpers/
-│   ├── enums.rs                     # Column index enums for all tools
-│   ├── list_store_operations.rs     # Append/read GTK ListStore rows
-│   ├── image_operations.rs          # Image resize/preview for GTK
-│   ├── model_iter.rs                # GTK TreeView iteration
-│   └── mod.rs
 ├── help_functions.rs                # HEADER_ROW_COLOR, MAIN_ROW_COLOR, set_buttons
 ├── help_combo_box.rs                # Combo box option arrays (hash algs, etc.)
-├── notebook_enums.rs                # NotebookMainEnum (per-tool tab index)
-├── notebook_info.rs                 # Tab label + ListStore column definitions
+├── notebook_enums.rs / notebook_info.rs  # Tab indices, tab labels, ListStore column definitions
 ├── opening_selecting_records.rs     # Double-click → open file/folder
 ├── taskbar_progress.rs              # Windows/dummy taskbar progress
 └── gtk_traits.rs                    # Custom GTK trait extensions
 
-ui/
+ui/                                  # Cambalache XML — not in the knowledge graph, edit via Cambalache
 ├── main_window.ui      # Cambalache XML (65 KB) – entire main window layout
 ├── settings.ui         # Settings dialog
 ├── compare_images.ui   # Image comparison panel
@@ -91,28 +47,12 @@ ui/
 
 ## GuiData Struct (`gui_structs/gui_data.rs`)
 
-Central struct passed by clone/reference to every callback:
+`GuiData` (`src/gui_structs/gui_data.rs:50`) is the central struct passed by clone/reference to every
+callback: the main window, the 11-tool main notebook, the directory notebooks, the bottom buttons, the
+progress/settings/header/about/compare sub-structs, the select/sort popovers, the info and error widgets,
+the taskbar state, the shared-buttons map and the `stop_flag`.
 
-```rust
-pub struct GuiData {
-    pub window_main: gtk4::Window,
-    pub main_notebook: GuiMainNotebook,         // 11 tool tabs
-    pub upper_notebook: GuiUpperNotebook,       // Dir configuration
-    pub bottom_buttons: GuiBottomButtons,       // Action buttons
-    pub progress_window: GuiProgressDialog,
-    pub settings: GuiSettings,
-    pub header: GuiHeader,
-    pub compare_images: GuiCompareImages,
-    pub about: GuiAbout,
-    pub popovers_select: GuiSelectPopovers,
-    pub popovers_sort: GuiSortPopovers,
-    pub entry_info: gtk4::Entry,
-    pub text_view_errors: gtk4::TextView,
-    pub taskbar_state: Rc<RefCell<TaskbarProgress>>,
-    pub shared_buttons: Rc<RefCell<HashMap<NotebookMainEnum, …>>>,
-    pub stop_flag: Arc<AtomicBool>,
-}
-```
+Its field-level composition: graph query.
 
 Constructed by `GuiData::new_with_application()` which loads all `.ui` files
 via `gtk4::Builder`.
@@ -121,20 +61,12 @@ via `gtk4::Builder`.
 
 ## Scan Thread Architecture
 
-```
-User clicks Search
-→ connect_button_search.rs
-→ Disables UI, shows progress window
-→ Spawn worker thread:
-    - Read settings from GTK widgets
-    - Create tool struct (e.g. DuplicateFinder)
-    - Call tool.search(stop_flag, progress_sender)
-    - Send Message::Duplicates(tool) via result_sender
-→ Main thread: receive progress updates → update bars
-→ On result received:
-    - compute_results.rs processes tool data → appends to ListStore
-    - Re-enables UI, hides progress
-```
+Clicking Search goes through `connect_button_search()` (`src/connect_things/connect_button_search.rs:45`):
+it disables the UI and shows the progress window, then spawns a worker thread that reads the settings from
+the GTK widgets, creates the tool struct, calls `tool.search(stop_flag, progress_sender)` and sends the
+finished tool back over `result_sender`. The main thread updates the progress bars meanwhile, and when the
+result arrives it runs `compute_results.rs` to append rows to the `ListStore`, then re-enables the UI and
+hides the progress window.
 
 **Channel types:**
 - `Sender<Message>` – one-shot result channel (tool enum with full data)
@@ -144,13 +76,11 @@ User clicks Search
 
 ## Result Population (`compute_results.rs`)
 
-1. Receive `Message::Duplicates(DuplicateFinder)` from worker thread.
-2. Extract sorted file groups from the tool.
-3. For each group: insert a **header row** (colored `HEADER_ROW_COLOR`), then
-   one row per file (`MAIN_ROW_COLOR`).
-4. `append_row_to_list_store()` writes individual cells to `gtk4::ListStore`.
-5. `finalize_compute()` stores the tool object in `SubView.shared_model_enum`
-   (for later re-use by selection/sort callbacks).
+The worker `Message` is unpacked into sorted file groups; each group gets a **header row**
+(`HEADER_ROW_COLOR`) followed by one row per file (`MAIN_ROW_COLOR`), written cell by cell with
+`append_row_to_list_store()` (`src/helpers/list_store_operations.rs:251`). `finalize_compute()`
+(`src/compute_results.rs:60`) then stores the tool object in `SubView.shared_model_enum` for later re-use
+by the selection/sort callbacks.
 
 ---
 

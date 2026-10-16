@@ -12,56 +12,19 @@ tool structs and drive them via the `Search` trait.
 
 ## Source Layout
 
-```
-czkawka_core/src/
-├── lib.rs                         # Crate root; TOOLS_NUMBER constant
-├── localizer_core.rs              # Fluent i18n loader (flc! macro)
-├── common/
-│   ├── mod.rs                     # Shared helpers (format_time, split_path, …)
-│   ├── audio_fingerprint.rs       # Chromaprint audio fingerprint extraction (rusty-chromaprint)
-│   ├── traits.rs                  # Core traits: Search, CommonData, PrintResults, …
-│   ├── tool_data.rs               # CommonToolData struct, DeleteMethod enum
-│   ├── model.rs                   # ToolType, CheckingMethod, FileEntry
-│   ├── progress_data.rs           # ProgressData, CurrentStage enum
-│   ├── progress_stop_handler.rs   # ProgressThreadHandler, check_if_stop_received
-│   ├── dir_traversal.rs           # DirTraversalBuilder, DirTraversalResult
-│   ├── cache.rs                   # Generic load/save cache (bincode + JSON)
-│   ├── cache/
-│   │   └── cleaning.rs            # Outdated cache cleanup
-│   ├── config_cache_path.rs       # Platform config/cache path lookup
-│   ├── directories.rs             # Directories struct (included/excluded/reference)
-│   ├── extensions.rs              # Extensions struct (allowed/excluded filtering)
-│   ├── items.rs                   # ExcludedItems (glob pattern matching)
-│   ├── consts.rs                  # Extension lists: IMAGE_RS_EXTENSIONS, …
-│   ├── ffmpeg_utils.rs            # FFmpeg invocation helpers
-│   ├── video_utils.rs             # Video metadata extraction
-│   ├── image.rs                   # Image loading helpers
-│   ├── process_utils.rs           # Child-process helpers
-│   ├── logger.rs                  # Logging configuration
-│   └── basic_gui_cli.rs           # GUI/CLI argument parsing (paths, tool, preset, start-scan flags)
-├── tools/
-│   ├── mod.rs                     # Re-exports all tool modules
-│   ├── duplicate/                 # Hash/name/size duplicate detection
-│   ├── empty_files/
-│   ├── empty_folder/
-│   ├── big_file/
-│   ├── similar_images/            # Perceptual hashing (image_hasher)
-│   ├── similar_videos/            # Visual (frame hash) + audio-fingerprint video similarity
-│   ├── same_music/                # Audio tag + chromaprint fingerprint
-│   ├── broken_files/              # Archive/PDF/audio/image/font/markup validation
-│   ├── bad_extensions/            # Extension vs magic-number mismatch
-│   ├── bad_names/                 # Naming policy checks
-│   ├── invalid_symlinks/
-│   ├── temporary/
-│   ├── exif_remover/
-│   └── video_optimizer/           # Crop detection + FFmpeg transcoding
-└── helpers/
-    ├── messages.rs                # Messages struct (errors, warnings, info)
-    ├── delayed_sender.rs          # Rate-limited progress sender
-    ├── audio_checker.rs           # Audio file validation
-    ├── ffprobe.rs                 # ffprobe JSON output parsing
-    └── debug_timer.rs             # Debug-build timing
-```
+Shared-infrastructure entry points (the crate has no UI dependency):
+
+- `src/lib.rs:13` — crate root; `TOOLS_NUMBER = 14`.
+- `src/common/traits.rs:143` — the `Search` trait every tool implements.
+- `src/common/tool_data.rs:23` (`CommonToolData`) and `src/common/tool_data.rs:122` (`CommonData`) —
+  per-tool state and its accessor contract.
+- `src/common/dir_traversal.rs:39` — `DirTraversalBuilder`, the shared filesystem traversal.
+- `src/common/progress_stop_handler.rs:15` — `ProgressThreadHandler`, the progress thread.
+- `src/tools/<tool>/` — one directory per tool; `src/helpers/` — messages, ffprobe and timing helpers;
+  `src/localizer_core.rs` — Fluent loader (`flc!`).
+
+Module-by-module layout is a graph query away; do not restate it here (see the structural-navigation
+rules in the root AGENTS.md).
 
 ---
 
@@ -111,210 +74,66 @@ src/tools/empty_files/
 - **Caching** (if used): define a `CACHE_<TOOL>_VERSION` constant, call `load_cache_from_file_generalized_by_path` / `save_cache_to_file_generalized`.
 - **`#[fun_time(message = "...", level = "debug")]`** on every public method for debug-build timing.
 
-### Minimal template
-
-```rust
-// mod.rs
-pub struct MyTool {
-    common_data: CommonToolData,
-    information: Info,
-    parameters: Parameters,
-}
-pub struct Info { /* results fields */ }
-pub struct Parameters { /* tool-specific settings */ }
-impl MyTool {
-    pub fn new(parameters: Parameters) -> Self {
-        Self {
-            common_data: CommonToolData::new(ToolType::MyTool),
-            information: Info::default(),
-            parameters,
-        }
-    }
-}
-```
-
-```rust
-// core.rs
-pub fn check_files(&mut self, stop_flag: &Arc<AtomicBool>,
-                    progress_sender: Option<&Sender<ProgressData>>) -> WorkContinueStatus {
-    // 1. prepare_items()
-    // 2. DirTraversalBuilder or custom traversal
-    // 3. Process results → self.information
-    // 4. Return WorkContinueStatus::Continue (or Stop)
-}
-```
-
-```rust
-// traits.rs
-impl CommonData for MyTool { /* delegate get_cd/get_cd_mut to self.common_data */ }
-impl Search for MyTool { fn search(...) { self.check_files(...); } }
-impl PrintResults for MyTool { /* serialize self.information */ }
-impl DeletingItems for MyTool { /* or use the default impl from CommonData */ }
-impl AllTraits for MyTool {}
-impl DebugPrint for MyTool { /* println! debug info */ }
-```
-
 ---
 
 ## Core Traits
 
 ### `traits.rs` — behaviour contracts
 
-```rust
-// src/common/traits.rs
-pub trait DebugPrint {
-    fn debug_print(&self);
-}
+`src/common/traits.rs` defines `DebugPrint`, `Search`, `DeletingItems`, `FixingItems`, `ResultEntry`,
+`PrintResults` and `AllTraits` (`DebugPrint + PrintResults + DeletingItems + CommonData + Search`) —
+the bundle every tool implements.
 
-pub trait Search {
-    fn search(&mut self, stop_flag: &Arc<AtomicBool>,
-              progress_sender: Option<&Sender<ProgressData>>);
-}
+- `ResultEntry::get_inode()` defaults to `0` on non-Unix platforms.
+- `PrintResults::print_results_to_output()` writes to stdout and is used by the CLI only;
+  `save_all_in_one()` writes `.txt` + `_pretty.json` + `_compact.json`.
 
-pub trait DeletingItems {
-    #[must_use]
-    fn delete_files(&mut self, stop_flag: &Arc<AtomicBool>,
-                    progress_sender: Option<&Sender<ProgressData>>) -> WorkContinueStatus;
-}
-
-pub trait FixingItems {
-    type FixParams;
-    fn fix_items(&mut self, stop_flag: &Arc<AtomicBool>,
-                 progress_sender: Option<&Sender<ProgressData>>, fix_params: Self::FixParams);
-}
-
-pub trait ResultEntry {
-    fn get_path(&self) -> &Path;
-    fn get_modified_date(&self) -> u64;
-    fn get_size(&self) -> u64;
-    fn get_inode(&self) -> u64;   // default: 0 (non-Unix platforms)
-}
-
-pub trait PrintResults: CommonData {
-    fn write_results<T: Write>(&self, writer: &mut T) -> io::Result<()>;
-    fn write_base_search_paths<T: Write>(&self, writer: &mut T) -> io::Result<()>;
-    fn print_results_to_output(&self);                               // stdout (CLI only)
-    fn print_results_to_file(&self, file_name: &str) -> io::Result<()>;
-    fn print_results_to_writer<T: Write>(&self, writer: &mut T) -> io::Result<()>;
-    fn save_results_to_file_as_json(&self, file: &str, pretty: bool) -> io::Result<()>;
-    fn save_all_in_one(&self, folder: &str, base_name: &str) -> io::Result<()>;
-    //  ^ writes .txt + _pretty.json + _compact.json
-}
-
-pub trait AllTraits: DebugPrint + PrintResults + DeletingItems + CommonData + Search {}
-```
+Signatures and the full method list: graph query.
 
 ### `tool_data.rs` — data contracts
 
-```rust
-// src/common/tool_data.rs
-pub enum DeleteMethod {
-    None, Delete, AllExceptNewest, AllExceptOldest, OneOldest, OneNewest,
-    HardLink, AllExceptBiggest, AllExceptSmallest, OneBiggest, OneSmallest,
-}
+`CommonData` (`src/common/tool_data.rs:122`) is the accessor contract implemented by every tool:
+`get_information`, `get_params`, `get_cd`/`get_cd_mut`, `get_check_method`, `found_any_items`,
+`prepare_items` (validates and optimizes directories + extensions) plus the setters for paths,
+extensions, cache, delete and file-size options.
 
-pub trait CommonData {
-    type Info;
-    type Parameters;
-
-    fn get_information(&self) -> Self::Info;
-    fn get_params(&self) -> Self::Parameters;
-    fn get_cd(&self) -> &CommonToolData;
-    fn get_cd_mut(&mut self) -> &mut CommonToolData;
-    fn get_check_method(&self) -> CheckingMethod { CheckingMethod::None }
-    fn found_any_items(&self) -> bool;
-
-    // ~30 setters/getters for: hide_hard_links, dry_run, use_cache,
-    //   delete_outdated_cache, stopped_search, file sizes, recursive_search,
-    //   use_reference_folders, delete_method, move_to_trash,
-    //   included/excluded/reference paths, extensions, excluded items
-
-    /// Validates and optimizes directories + extensions. Call before search().
-    fn prepare_items(&mut self, tool_extensions: Option<&[&str]>) -> Result<(), ()>;
-
-    // Built-in delete strategies (used by tools that don't override DeletingItems):
-    fn delete_simple_elements_and_add_to_messages<T: ResultEntry>(
-        &mut self, stop_flag: &Arc<AtomicBool>,
-        progress_sender: Option<&Sender<ProgressData>>,
-        delete_item_type: DeleteItemType<T>,
-    ) -> WorkContinueStatus;
-
-    fn delete_advanced_elements_and_add_to_messages<T: ResultEntry + Clone>(
-        &mut self, stop_flag: &Arc<AtomicBool>,
-        progress_sender: Option<&Sender<ProgressData>>,
-        files_to_process: Vec<Vec<T>>,
-    ) -> WorkContinueStatus;
-}
-```
+It also carries the built-in delete strategies `delete_simple_elements_and_add_to_messages` and
+`delete_advanced_elements_and_add_to_messages`, reused by tools that do not implement their own
+`DeletingItems`. `DeleteMethod` holds the user-visible delete strategies: `None`, `Delete`,
+`AllExceptNewest`, `AllExceptOldest`, `OneOldest`, `OneNewest`, `HardLink`, `AllExceptBiggest`,
+`AllExceptSmallest`, `OneBiggest`, `OneSmallest`.
 
 ### Key supporting types (`src/common/model.rs`)
 
-```rust
-pub enum WorkContinueStatus { Continue, Stop }
+- `WorkContinueStatus` — `Continue` / `Stop`.
+- `CheckingMethod` — `None`, `Name`, `SizeName`, `Size`, `Hash`, `AudioTags`, `AudioContent`,
+  `VideoAudioContent`; `VideoAudioContent` selects the `SimilarVideos` audio-fingerprint mode
+  (audio path, no ffmpeg).
+- `HashType` — `Blake3`, `Crc32`, `Xxh3`.
+- `FileEntry` (`path`, `size`, `modified_date`, `inode`) implements `ResultEntry` and is the standard
+  result item for all tools.
 
-pub enum CheckingMethod {
-    None, Name, SizeName, Size, Hash, AudioTags, AudioContent, VideoAudioContent,
-}
-// VideoAudioContent selects the SimilarVideos audio-fingerprint mode (audio path, no ffmpeg).
-
-pub enum HashType { Blake3, Crc32, Xxh3 }
-
-pub struct FileEntry {
-    pub path: PathBuf,
-    pub size: u64,
-    pub modified_date: u64,
-    pub inode: u64,
-}
-// FileEntry implements ResultEntry — used by all tools as the standard result item.
-```
+Definitions and callers: graph query.
 
 ---
 
 ## CommonToolData (`src/common/tool_data.rs`)
 
-```rust
-pub struct CommonToolData {
-    pub(crate) tool_type: ToolType,
-    pub(crate) text_messages: Messages,        // Accumulated warnings / errors
-    pub(crate) directories: Directories,       // Included / excluded / reference paths
-    pub(crate) extensions: Extensions,         // Allowed / excluded extensions
-    pub(crate) excluded_items: ExcludedItems,  // Glob patterns (e.g. "*/.*")
-    pub(crate) recursive_search: bool,
-    pub(crate) delete_method: DeleteMethod,
-    pub(crate) maximal_file_size: u64,
-    pub(crate) minimal_file_size: u64,
-    pub(crate) stopped_search: bool,
-    pub(crate) use_cache: bool,
-    pub(crate) delete_outdated_cache: bool,
-    pub(crate) save_also_as_json: bool,
-    pub(crate) use_reference_folders: bool,
-    pub(crate) dry_run: bool,
-    pub(crate) move_to_trash: bool,
-    pub(crate) hide_hard_links: bool,
-}
-```
+`CommonToolData` (`src/common/tool_data.rs:23`) is the per-tool state bag: tool type,
+`Messages` (`src/helpers/messages.rs:7`, accumulated warnings/errors), `Directories`, `Extensions`,
+`ExcludedItems`, `recursive_search`, `DeleteMethod`, min/max file size, `stopped_search`, `use_cache`,
+`delete_outdated_cache`, `save_also_as_json`, `use_reference_folders`, `dry_run`, `move_to_trash`,
+`hide_hard_links`.
+
+Field-level detail: graph query.
 
 ---
 
 ## DirTraversal (`src/common/dir_traversal.rs`)
 
-Builder-pattern filesystem traversal used by all tools:
-
-```rust
-let result = DirTraversalBuilder::new()
-    .common_data(&self.common_data)
-    .group_by(|fe: &FileEntry| fe.size)   // Groups entries by this key
-    .stop_flag(stop_flag)
-    .progress_sender(progress_sender)
-    .checking_method(CheckingMethod::Size)
-    .build()
-    .run();
-
-match result {
-    DirTraversalResult::SuccessFiles { grouped_file_entries, warnings } => { … }
-    DirTraversalResult::Stopped => return WorkContinueStatus::Stop,
-}
-```
+`DirTraversalBuilder` (`src/common/dir_traversal.rs:39`) is the builder-pattern traversal used by all
+tools: `group_by(|fe: &FileEntry| …)` sets the grouping key, and `run()` yields
+`DirTraversalResult::SuccessFiles { grouped_file_entries, warnings }` or `DirTraversalResult::Stopped`.
 
 **Internals:**
 - Rayon `into_par_iter().with_max_len(2)` for parallel folder processing.
@@ -327,22 +146,11 @@ match result {
 
 ## Progress Reporting (`src/common/progress_stop_handler.rs`)
 
-```rust
-pub struct ProgressData {
-    pub sstage: CurrentStage,       // Current operation
-    pub checking_method: CheckingMethod,  // e.g. Hash, AudioTags (disambiguates SameMusic/Duplicate)
-    pub current_stage_idx: u8,      // Index of current stage
-    pub max_stage_idx: u8,          // Max stages for this tool
-    pub entries_checked: usize,
-    pub entries_to_check: usize,
-    pub bytes_checked: u64,
-    pub bytes_to_check: u64,
-    pub tool_type: ToolType,
-}
-```
+`ProgressData` carries the current stage, the `CheckingMethod` (which disambiguates SameMusic from
+Duplicate), stage indices, entries/bytes counters and the tool type.
 
-`ProgressThreadHandler` spawns a background thread that polls `AtomicUsize`/`AtomicU64`
-counters and sends `ProgressData` to the frontend channel every ~200 ms.
+`ProgressThreadHandler` (`src/common/progress_stop_handler.rs:15`) spawns a background thread that
+polls `AtomicUsize`/`AtomicU64` counters and sends `ProgressData` to the frontend channel every ~200 ms.
 
 Call `handler.increase_items(n)` / `handler.increase_size(n)` from rayon tasks
 (using `Relaxed` ordering — fast, no synchronization overhead).
@@ -351,12 +159,8 @@ Call `handler.increase_items(n)` / `handler.increase_size(n)` from rayon tasks
 
 ## Cancellation
 
-```rust
-// In hot paths:
-if check_if_stop_received(stop_flag) {
-    return WorkContinueStatus::Stop;  // or break / return None in rayon
-}
-```
+Hot paths poll `check_if_stop_received(stop_flag)` and return `WorkContinueStatus::Stop` (or `break` /
+`return None` inside rayon).
 
 `stop_flag` is `Arc<AtomicBool>` with `Relaxed` ordering — sufficient for simple
 "should I stop?" polling without synchronization cost. The frontend sets it to
@@ -366,23 +170,8 @@ if check_if_stop_received(stop_flag) {
 
 ## Cache (`src/common/cache.rs`)
 
-```rust
-// Save
-save_cache_to_file_generalized::<T>(
-    cache_file_name,    // e.g. "cache_duplicates.bin"
-    &btree_map,         // BTreeMap<String, T> (String = canonical path)
-    save_also_as_json,
-    minimum_file_size,
-);
-
-// Load
-let (messages, opt_cache) =
-    load_cache_from_file_generalized_by_path::<T>(
-        cache_file_name,
-        delete_outdated_cache,
-        &used_files,    // Current BTreeMap to validate against
-    );
-```
+`save_cache_to_file_generalized::<T>(…)` / `load_cache_from_file_generalized_by_path::<T>(…)` operate
+on a `BTreeMap<String, T>` keyed by canonical path.
 
 - Serialized with `bincode` (binary). Optionally also as `.json`.
 - Cached entries validated by path + size + mtime on load.
@@ -397,35 +186,20 @@ let (messages, opt_cache) =
 
 ## Rayon Usage Patterns
 
-```rust
-// Directory traversal
-folders.into_par_iter().with_max_len(2).map(|dir| { … }).while_some().collect();
+- Traversal: `folders.into_par_iter().with_max_len(2).map(…).while_some().collect()`.
+- Deletion: `items.into_par_iter().map(…).while_some().flatten().collect()`, returning `None` on a
+  received stop request for early exit.
 
-// Deletion with early exit
-items.into_par_iter().map(|e| {
-    if check_if_stop_received(stop_flag) { return None; }
-    // … process e …
-    Some(result)
-}).while_some().flatten().collect()
-```
-
-Thread count is globally controlled via `set_number_of_threads(n)` which stores
-to a `LazyLock<Mutex<Option<usize>>>` and is applied via rayon's thread pool.
+Thread count is globally controlled via `set_number_of_threads(n)` (`src/common/mod.rs:58`), which
+stores to a `LazyLock<Mutex<Option<usize>>>` and is applied via rayon's thread pool.
 
 ---
 
 ## ToolType Enum (`src/common/model.rs`)
 
-```rust
-pub enum ToolType {
-    Duplicate, EmptyFolders, EmptyFiles, InvalidSymlinks,
-    BrokenFiles, BadExtensions, BadNames, BigFile, SameMusic,
-    SimilarImages, SimilarVideos, TemporaryFiles, ExifRemover,
-    VideoOptimizer,
-    #[default]
-    None,
-}
-```
+`ToolType` variants: `Duplicate`, `EmptyFolders`, `EmptyFiles`, `InvalidSymlinks`, `BrokenFiles`,
+`BadExtensions`, `BadNames`, `BigFile`, `SameMusic`, `SimilarImages`, `SimilarVideos`,
+`TemporaryFiles`, `ExifRemover`, `VideoOptimizer`, plus `None` (`#[default]`).
 
 Tools that support reference directories: `Duplicate`, `SameMusic`,
 `SimilarImages`, `SimilarVideos` (`may_use_reference_paths()`).

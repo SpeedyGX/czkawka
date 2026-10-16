@@ -39,29 +39,13 @@ wire callbacks → start worker thread → run event loop.
 
 ```
 cedinia/src/
-├── lib.rs                         # Android entry (#[no_mangle] android_main)
-├── app.rs                         # Desktop entry + shared run_app_inner()
-├── bin/cedinia.rs                 # Desktop binary wrapper
-├── common.rs                      # Column index enums (StrData*, IntData*)
-├── model.rs                       # FileEntry toggle/count logic
-├── scan_runner.rs                 # Worker thread + ScanRequest/ScanResult
-├── scanners.rs                    # Tool-specific scan builders
-├── notifications.rs               # Desktop notifications
-├── set_initial_gui_infos.rs       # Initial GUI state
-├── thumbnail_loader.rs            # Async image thumbnail loading
-├── translations.rs                # translate_items() – populates Translations global
-├── volumes.rs                     # Storage volume detection
-├── localizer_cedinia.rs           # flc! macro, LANGUAGE_LIST, apply_language_preference()
-├── file_picker_android.rs         # JNI + embedded DEX file picker
-├── callbacks/
-│   ├── callbacks.rs               # Module re-exports
-│   ├── scan.rs                    # wire_scan() – scan/stop/tool-change callbacks
-│   ├── selection.rs               # wire_selection() – delete + model access
-│   ├── directories.rs             # wire_directories() – add/remove include/exclude dirs
-│   └── misc.rs                    # wire_permission(), language, open-path, settings
-├── settings/
-│   ├── mod.rs                     # CediniaSettings struct; load/save JSON
-│   └── gui_settings_values.rs     # StringComboBoxItems – combo box option arrays
+├── lib.rs / app.rs / bin/cedinia.rs   # Android entry (fn android_main) + desktop entry + shared run_app_inner()
+├── file_picker_android.rs             # JNI + embedded DEX file picker (Android)
+├── callbacks/                         # wire_scan(), wire_selection(), wire_directories(), wire_permission()
+├── settings/                          # CediniaSettings (JSON) + StringComboBoxItems option arrays
+├── scan_runner.rs / scanners.rs       # Worker thread, ScanRequest/ScanResult, per-tool scan builders
+├── translations.rs / localizer_cedinia.rs  # translate_items(), flc! macro, LANGUAGE_LIST
+├── common.rs / model.rs               # Column index enums, FileEntry toggle/count logic
 └── ui/
     ├── main_window.slint          # Root component
     ├── app_state.slint            # Global AppState, GeneralSettings, tool-specific globals
@@ -113,14 +97,10 @@ Reference: Slint issue [#11021](https://github.com/slint-ui/slint/issues/11021).
 
 ## Scan Data Flow
 
-```
-1. User selects tool + taps Scan → AppState.on_scan_requested()
-2. scan.rs: collect settings from globals → build ScanRequest
-3. ScanRequest sent to worker thread via channel
-4. Worker: configure tool struct → tool.search(stop_flag, progress_sender)
-5. Results stored; ScanResult sent back to main thread
-6. invoke_from_event_loop: populate model, update AppState.scan_state
-```
+`AppState.on_scan_requested()` → `scan.rs` collects the globals into a `ScanRequest` and sends it to the
+worker thread (`scan_runner.rs`), which configures the tool, runs `tool.search(...)` and sends a
+`ScanResult` back; the main thread populates the model via `invoke_from_event_loop` and updates
+`AppState.scan_state`.
 
 ---
 

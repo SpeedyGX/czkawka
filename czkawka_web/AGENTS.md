@@ -57,22 +57,13 @@ to all files under [`czkawka_web/`](.).
 
 ### Source Layout
 
-```
-czkawka_web/src/
-├── main.rs              # Tokio main, router, terminal auto-launch
-├── embedded.rs          # Static file serving (rust-embed + MIME mappings)
-├── scan_manager.rs      # ScanManager + ScanState + ScanStatus
-├── ws.rs                # WebSocket progress handler
-└── api/
-    ├── mod.rs
-    ├── scan.rs          # run_scan() generic + 4 scan endpoints + serializers
-    ├── actions.rs       # POST /api/files/delete + /api/files/hardlink
-    ├── file.rs          # GET /api/file/{name} (streaming) + POST /api/files/open (OS open/reveal)
-    ├── results.rs       # GET /api/results/{scan_id}
-    ├── preview.rs       # GET /api/preview/image + /api/preview/video
-    ├── browse.rs        # GET /api/browse (file browser)
-    └── health.rs        # GET /api/health
-```
+- `src/main.rs:19` — `#[tokio::main]`, router, terminal auto-launch.
+- `src/api/scan.rs:88` — `run_scan()` plus the 4 scan endpoints and their serializers.
+- `src/scan_manager.rs:39` — `ScanManager`, `ScanState`, `ScanStatus`.
+- `src/ws.rs` — WebSocket progress; `src/embedded.rs` — static-file serving (see below);
+  `src/api/{actions,file,results,preview,browse,health}.rs` — the remaining handlers.
+
+Handler-to-route mapping: see the endpoint table below.
 
 ### API Endpoints
 
@@ -117,27 +108,24 @@ This table is the **single source of truth** for the HTTP surface. [`README.md`]
 
 ### Scan lifecycle (`run_scan()`)
 
-All 4 scan endpoints delegate to `run_scan()` in [`src/api/scan.rs`](src/api/scan.rs): acquire a
-semaphore permit (429 if none) → `ScanManager::create_scan()` → bridge a
-`crossbeam_channel::Receiver<ProgressData>` to a `broadcast::Sender<ProgressData>` on a relay thread →
-spawn a `std::thread` worker that runs the tool closure inside `catch_unwind` and calls
-`finish_scan()` via the stored tokio handle (panics become `ScanStatus::Failed`) → reply immediately
-with `{ "scan_id": "...", "status": "started" }`.
+All 4 scan endpoints delegate to `run_scan()` (`src/api/scan.rs:88`), which replies immediately with
+`{ "scan_id": "...", "status": "started" }` and hands the work to a `std::thread` worker.
 
-`ScanManager` ([`src/scan_manager.rs`](src/scan_manager.rs)) holds a
-`Mutex<HashMap<String, ScanState>>`. A `ScanState` carries the `ScanStatus`
-(`Running`/`Completed`/`Stopped`/`Failed(String)`), an `Arc<AtomicBool>` stop flag, a 256-capacity
-`broadcast::Sender<ProgressData>`, and the serialized result. `AppState`
-([`src/api/scan.rs`](src/api/scan.rs)) adds a stored `tokio::runtime::Handle` so worker threads can
-update scan state from outside the async runtime.
+Contracts that must not change:
+
+- A semaphore permit gates concurrency — a third concurrent scan gets HTTP 429.
+- The worker runs the tool closure inside `catch_unwind`; a panic becomes `ScanStatus::Failed`.
+- Progress is bridged from a `crossbeam_channel` receiver to a 256-capacity
+  `broadcast::Sender<ProgressData>` by a relay thread.
+- `ScanManager` (`src/scan_manager.rs:39`) holds a `Mutex<HashMap<String, ScanState>>`; a `ScanState`
+  carries the `ScanStatus` (`Running`/`Completed`/`Stopped`/`Failed(String)`), the stop flag and the
+  serialized result. `AppState` stores a `tokio::runtime::Handle` so worker threads can update scan state
+  from outside the async runtime.
 
 ### Progress forwarding & WebSocket
 
-```
-worker thread → crossbeam Sender<ProgressData>
-  → relay std::thread → tokio broadcast::Sender (256)
-    → WebSocket task → browser (JSON ~every 200 ms)
-```
+Path: worker thread → crossbeam `Sender<ProgressData>` → relay thread → tokio `broadcast` (capacity 256)
+→ WebSocket task → browser (JSON ~every 200 ms).
 
 [`src/ws.rs`](src/ws.rs) upgrades `GET /api/scan/progress/{scan_id}` and `tokio::select!`s progress
 events, a 200 ms interval that polls `ScanManager::get_status()` (a fallback for a status set after
