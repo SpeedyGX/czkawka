@@ -1,0 +1,14 @@
+/target
+*.txt
+.venv
+/czkawka_web/data
+/czkawka_web/scan_folder
+/.vscode
+*.md
+*.pdf
+*.png
+*.jpg
+node_modules/
+dist/
+coverage/
+*.generated.py
